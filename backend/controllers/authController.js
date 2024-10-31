@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const CryptoJS = require('crypto-js');
+const nodemailer = require('nodemailer');
 
 class AuthController {
     // These would be stored in environment variables
@@ -10,6 +11,26 @@ class AuthController {
     static JWT_SECRET = process.env.JWT_SECRET;
     static SALT_ROUNDS = 12;
     static TRANSIT_KEY = process.env.TRANSIT_KEY;
+
+    // New constants for email
+    static SMTP_HOST = process.env.SMTP_HOST;
+    static SMTP_PORT = process.env.SMTP_PORT;
+    static SMTP_USER = process.env.SMTP_USER;
+    static SMTP_PASS = process.env.SMTP_PASS;
+    static APP_URL = process.env.APP_URL;
+
+    // Initialize email transporter
+    static getEmailTransporter() {
+        return nodemailer.createTransport({
+            host: AuthController.SMTP_HOST,
+            port: AuthController.SMTP_PORT,
+            secure: true,
+            auth: {
+                user: AuthController.SMTP_USER,
+                pass: AuthController.SMTP_PASS
+            }
+        });
+    }
 
     static async register(req, res) {
         try {
@@ -23,6 +44,10 @@ class AuthController {
             if (existingUser) {
                 return res.status(400).json({ message: 'User already exists' });
             }
+
+            // Generate verification token
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
             // Generate a unique salt for this user
             const salt = await bcrypt.genSalt(AuthController.SALT_ROUNDS);
@@ -39,20 +64,19 @@ class AuthController {
                 password: hashedPassword,
                 name,
                 phoneno,
-                salt // Store salt with user record
+                salt,
+                verificationToken,
+                tokenExpiry,
+                isVerified: false
             });
 
-            // Generate JWT token
-            const token = AuthController.generateToken(user);
+            // Send verification email
+            await AuthController.sendVerificationEmail(user.email, verificationToken);
 
             res.status(201).json({
-                message: 'User registered successfully',
-                token,
-                user: {
-                    id: user._id,
-                    email: user.email,
-                    name: user.name
-                }
+                message: 'Registration successful. Please check your email to verify your account.',
+                requiresVerification: true,
+                email: user.email
             });
         } catch (error) {
             console.error('Registration error:', error);
@@ -71,6 +95,15 @@ class AuthController {
             const user = await UserModel.findOne({ email });
             if (!user) {
                 return res.status(401).json({ message: 'Invalid credentials' });
+            }
+
+            // Check if user is verified
+            if (!user.isVerified) {
+                return res.status(403).json({
+                    message: 'Please verify your email before logging in',
+                    requiresVerification: true,
+                    email: user.email
+                });
             }
 
             // Combine password with pepper
@@ -100,6 +133,98 @@ class AuthController {
         }
     }
 
+    static async verifyEmail(req, res) {
+        try {
+            const { token } = req.params;
+
+            const user = await UserModel.findOne({
+                verificationToken: token,
+                tokenExpiry: { $gt: new Date() }
+            });
+
+            if (!user) {
+                return res.status(400).json({
+                    message: 'Invalid or expired verification token'
+                });
+            }
+
+            // Update user verification status
+            user.isVerified = true;
+            user.verificationToken = undefined;
+            user.tokenExpiry = undefined;
+            await user.save();
+
+            res.json({
+                message: 'Email verified successfully'
+            });
+        } catch (error) {
+            console.error('Verification error:', error);
+            res.status(500).json({ message: 'Verification failed', error: error.message });
+        }
+    }
+
+    static async resendVerification(req, res) {
+        try {
+            const { email } = req.body;
+
+            const user = await UserModel.findOne({ email });
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            if (user.isVerified) {
+                return res.status(400).json({ message: 'Email is already verified' });
+            }
+
+            // Generate new verification token
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+            user.verificationToken = verificationToken;
+            user.tokenExpiry = tokenExpiry;
+            await user.save();
+
+            // Send new verification email
+            await AuthController.sendVerificationEmail(email, verificationToken);
+
+            res.json({
+                message: 'Verification email has been resent'
+            });
+        } catch (error) {
+            console.error('Resend verification error:', error);
+            res.status(500).json({ message: 'Failed to resend verification email', error: error.message });
+        }
+    }
+
+    static async sendVerificationEmail(email, token) {
+        const transporter = AuthController.getEmailTransporter();
+        const verificationUrl = `${AuthController.APP_URL}/verify-email/${token}`;
+
+        const mailOptions = {
+            from: AuthController.SMTP_USER,
+            to: email,
+            subject: 'Verify your InfoLock account',
+            html: `
+                <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+                    <h2>Welcome to InfoLock!</h2>
+                    <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${verificationUrl}" 
+                           style="background-color: #007bff; color: white; padding: 12px 24px; 
+                                  text-decoration: none; border-radius: 4px; display: inline-block;">
+                            Verify Email Address
+                        </a>
+                    </div>
+                    <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                    <p>${verificationUrl}</p>
+                    <p>This link will expire in 24 hours.</p>
+                    <p>If you didn't create an account, please ignore this email.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+    }
     static async logout(req, res) {
         try {
             // If you're using token blacklisting, implement it here

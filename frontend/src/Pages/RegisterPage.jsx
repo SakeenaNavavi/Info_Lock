@@ -6,7 +6,7 @@ import '../styles/styles.css';
 import zxcvbn from 'zxcvbn';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/;
-const COMMON_PASSWORDS = ['password123', 'admin123', '12345678', 'qwerty123','abcdef123456','password1234'];
+const COMMON_PASSWORDS = ['password123', 'admin123', '12345678', 'qwerty123', 'abcdef123456', 'password1234'];
 
 const RegisterPage = () => {
   const navigate = useNavigate();
@@ -22,6 +22,8 @@ const RegisterPage = () => {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [registrationError, setRegistrationError] = useState('');
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   const validatePassword = (password) => {
     if (!PASSWORD_REGEX.test(password)) {
@@ -47,7 +49,7 @@ const RegisterPage = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -61,7 +63,7 @@ const RegisterPage = () => {
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required';
     }
@@ -96,18 +98,21 @@ const RegisterPage = () => {
       setRegistrationError('');
 
       try {
-        // Remove confirmPassword before sending to API
         const { confirmPassword, ...registrationData } = formData;
-        await AuthService.register(registrationData);
-        
-        // Automatically log in after successful registration
-        const loginResponse = await AuthService.login({
-          email: formData.email,
-          password: formData.password
-        });
+        const response = await AuthService.register(registrationData);
 
-        // Redirect to dashboard or wherever appropriate
-        navigate('/dashboard');
+        // Show verification message instead of auto-login
+        setShowVerificationMessage(true);
+        setRegisteredEmail(response.email);
+
+        // Clear form
+        setFormData({
+          name: '',
+          email: '',
+          phoneno: '',
+          password: '',
+          confirmPassword: ''
+        });
       } catch (error) {
         console.error("Registration Error:", error.response || error.message);
         setRegistrationError(error.message || 'Registration failed. Please try again.');
@@ -116,7 +121,56 @@ const RegisterPage = () => {
       }
     }
   };
-
+  const handleResendVerification = async () => {
+    try {
+      setIsLoading(true);
+      await AuthService.resendVerification(registeredEmail);
+      setRegistrationError('Verification email has been resent. Please check your inbox.');
+    } catch (error) {
+      setRegistrationError('Failed to resend verification email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  if (showVerificationMessage) {
+    return (
+      <div className="bg-custom-gradient min-vh-100 bg-dark d-flex align-items-center py-5">
+        <div className="container">
+          <div className="row justify-content-center">
+            <div className="col-md-6 col-lg-5">
+              <div className="card bg-dark border-secondary">
+                <div className="card-body p-4 text-center">
+                  <Shield className="text-primary mb-3" size={48} />
+                  <h4 className="text-light mb-3">Verify Your Email</h4>
+                  <p className="text-light mb-4">
+                    We've sent a verification email to <strong>{registeredEmail}</strong>.
+                    Please check your inbox and click the verification link.
+                  </p>
+                  <button
+                    className="btn btn-primary mb-3"
+                    onClick={handleResendVerification}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Sending...' : 'Resend Verification Email'}
+                  </button>
+                  {registrationError && (
+                    <div className="alert alert-danger mt-3" role="alert">
+                      {registrationError}
+                    </div>
+                  )}
+                  <div className="mt-3">
+                    <a href="/login" className="text-primary text-decoration-none">
+                      Return to Login
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="bg-custom-gradient min-vh-100 bg-dark d-flex align-items-center py-5">
       <div className="container">
@@ -125,7 +179,7 @@ const RegisterPage = () => {
             <div className="card bg-dark border-secondary">
               <div className="card-body p-4">
                 <div className="text-center mb-4">
-                  <Shield className="text-primary mb-2 cursor-pointer" size={32} onClick={() => navigate('/')}/>
+                  <Shield className="text-primary mb-2 cursor-pointer" size={32} onClick={() => navigate('/')} />
                   <h4 className="text-light">Create Account</h4>
                   <p className="text-light">Get started with InfoLock</p>
                 </div>
@@ -220,8 +274,8 @@ const RegisterPage = () => {
                     {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
                   </div>
 
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="btn btn-primary w-100 mb-3"
                     disabled={isLoading}
                   >
