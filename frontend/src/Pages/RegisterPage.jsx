@@ -6,7 +6,7 @@ import zxcvbn from 'zxcvbn'; // For password strength checking
 
 // Password validation rules
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/;
-const COMMON_PASSWORDS = ['password123', 'admin123', '12345678', 'qwerty123'];
+const COMMON_PASSWORDS = ['password123', 'admin123', '12345678', 'qwerty123','abcdef123456','password1234'];
 
 const RegisterPage = () => {
   const navigate = useNavigate();
