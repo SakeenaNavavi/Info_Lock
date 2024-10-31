@@ -1,8 +1,8 @@
-// authController.js - Backend controller
-const UserModel = require('../models/userModel'); // Update path as necessary
+const UserModel = require('../models/userModel');
 const bcrypt = require('bcrypt');
-const cryptojs = require('crypto');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const CryptoJS = require('crypto-js');
 
 class AuthController {
     // These would be stored in environment variables
@@ -16,7 +16,7 @@ class AuthController {
             const { email, password: transitPassword, name, phoneno } = req.body;
 
             // Decrypt the transit-protected password
-            const password = this.decryptTransitPassword(transitPassword);
+            const password = AuthController.decryptTransitPassword(transitPassword);
 
             // Check if user already exists
             const existingUser = await UserModel.findOne({ email });
@@ -25,10 +25,10 @@ class AuthController {
             }
 
             // Generate a unique salt for this user
-            const salt = await bcrypt.genSalt(this.SALT_ROUNDS);
+            const salt = await bcrypt.genSalt(AuthController.SALT_ROUNDS);
 
             // Combine password with pepper
-            const pepperedPassword = this.applyPepper(password);
+            const pepperedPassword = AuthController.applyPepper(password);
 
             // Hash the peppered password with the salt
             const hashedPassword = await bcrypt.hash(pepperedPassword, salt);
@@ -43,7 +43,7 @@ class AuthController {
             });
 
             // Generate JWT token
-            const token = this.generateToken(user);
+            const token = AuthController.generateToken(user);
 
             res.status(201).json({
                 message: 'User registered successfully',
@@ -55,9 +55,7 @@ class AuthController {
                 }
             });
         } catch (error) {
-            console.log('Transit Key:', this.TRANSIT_KEY);
-            console.log('Pepper:', this.PEPPER);
-            console.log('JWT Secret:', this.JWT_SECRET);
+            console.error('Registration error:', error);
             res.status(500).json({ message: 'Registration failed', error: error.message });
         }
     }
@@ -67,7 +65,7 @@ class AuthController {
             const { email, password: transitPassword } = req.body;
 
             // Decrypt the transit-protected password
-            const password = this.decryptTransitPassword(transitPassword);
+            const password = AuthController.decryptTransitPassword(transitPassword);
 
             // Find user
             const user = await UserModel.findOne({ email });
@@ -76,7 +74,7 @@ class AuthController {
             }
 
             // Combine password with pepper
-            const pepperedPassword = this.applyPepper(password);
+            const pepperedPassword = AuthController.applyPepper(password);
 
             // Verify password using stored salt
             const isValid = await bcrypt.compare(pepperedPassword, user.password);
@@ -85,7 +83,7 @@ class AuthController {
             }
 
             // Generate JWT token
-            const token = this.generateToken(user);
+            const token = AuthController.generateToken(user);
 
             res.json({
                 message: 'Login successful',
@@ -97,22 +95,33 @@ class AuthController {
                 }
             });
         } catch (error) {
+            console.error('Login error:', error);
             res.status(500).json({ message: 'Login failed', error: error.message });
+        }
+    }
+
+    static async logout(req, res) {
+        try {
+            // If you're using token blacklisting, implement it here
+            res.json({ message: 'Logged out successfully' });
+        } catch (error) {
+            console.error('Logout error:', error);
+            res.status(500).json({ message: 'Logout failed', error: error.message });
         }
     }
 
     // Apply pepper to password
     static applyPepper(password) {
         return crypto
-            .createHmac('sha256', this.PEPPER)
+            .createHmac('sha256', AuthController.PEPPER)
             .update(password)
             .digest('hex');
     }
 
     // Decrypt password that was protected for transit
     static decryptTransitPassword(transitPassword) {
-        const bytes = cryptojs.AES.decrypt(transitPassword, this.TRANSIT_KEY);
-        return bytes.toString(cryptojs.enc.Utf8);
+        const bytes = CryptoJS.AES.decrypt(transitPassword, AuthController.TRANSIT_KEY);
+        return bytes.toString(CryptoJS.enc.Utf8);
     }
 
     // Generate JWT token
@@ -122,9 +131,11 @@ class AuthController {
                 id: user._id,
                 email: user.email
             },
-            this.JWT_SECRET,
+            AuthController.JWT_SECRET,
             { expiresIn: '24h' }
         );
     }
 }
+
+// Export the controller
 module.exports = AuthController;

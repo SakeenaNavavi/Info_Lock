@@ -5,8 +5,8 @@ export class AuthService {
   // Client-side temporary key for initial password protection during transit
   static TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
   
-  // Base API URL - make sure this matches your backend
-  static API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+  // Base API URL - use environment variable if available
+  static API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/auth/';
 
   // Axios instance with default config
   static axiosInstance = (() => {
@@ -83,18 +83,15 @@ export class AuthService {
       // First, hash the password client-side before transmission
       const securePassword = this.securePasswordForTransit(userData.password);
       
-      const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/api/auth/register`, {
+      const response = await this.axiosInstance.post('register', {
         ...userData,
         password: securePassword
       });
-      
       
       return response.data;
     } catch (error) {
       // Enhanced error handling
       if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
         const errorMessage = error.response.data?.message || 
                            error.response.data?.error || 
                            'Registration failed';
@@ -107,11 +104,9 @@ export class AuthService {
           throw new Error(`Registration failed: ${errorMessage}`);
         }
       } else if (error.request) {
-        // The request was made but no response was received
         console.error('No response received:', error.request);
         throw new Error('Unable to reach the server. Please check your internet connection.');
       } else {
-        // Something happened in setting up the request that triggered an Error
         console.error('Error setting up request:', error.message);
         throw new Error(error.message || 'An unexpected error occurred');
       }
@@ -133,7 +128,7 @@ export class AuthService {
       // Secure password for transit
       const securePassword = this.securePasswordForTransit(credentials.password);
       
-      const response = await this.axiosInstance.post('/api/auth/login', {
+      const response = await this.axiosInstance.post('login', {
         email: credentials.email,
         password: securePassword
       });
@@ -179,10 +174,9 @@ export class AuthService {
       delete this.axiosInstance.defaults.headers.common['Authorization'];
       
       // Optional: Call logout endpoint if your backend requires it
-      await this.axiosInstance.post('/api/auth/logout');
+      await this.axiosInstance.post('logout');
     } catch (error) {
       console.error('Logout error:', error);
-      // Still clear local storage and headers even if the API call fails
       localStorage.removeItem('token');
       delete this.axiosInstance.defaults.headers.common['Authorization'];
     }
