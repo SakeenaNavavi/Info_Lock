@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AuthService } from '../services/authService';
 import '../styles/styles.css';
-import zxcvbn from 'zxcvbn'; // For password strength checking
+import zxcvbn from 'zxcvbn';
 
-// Password validation rules
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/;
 const COMMON_PASSWORDS = ['password123', 'admin123', '12345678', 'qwerty123','abcdef123456','password1234'];
 
@@ -20,6 +20,8 @@ const RegisterPage = () => {
 
   const [errors, setErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [registrationError, setRegistrationError] = useState('');
 
   const validatePassword = (password) => {
     if (!PASSWORD_REGEX.test(password)) {
@@ -46,12 +48,11 @@ const RegisterPage = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Clear errors when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+    setRegistrationError(''); // Clear general registration error when user types
 
-    // Check password strength
     if (name === 'password') {
       const result = zxcvbn(value);
       setPasswordStrength(result.score);
@@ -61,30 +62,25 @@ const RegisterPage = () => {
   const validateForm = () => {
     const newErrors = {};
     
-    // Name validation
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required';
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
 
-    // Phone validation
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(formData.phoneno)) {
       newErrors.phoneno = 'Please enter a valid 10-digit phone number';
     }
 
-    // Password validation
     const passwordError = validatePassword(formData.password);
     if (passwordError) {
       newErrors.password = passwordError;
     }
 
-    // Confirm password validation
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
@@ -93,11 +89,31 @@ const RegisterPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      // Add registration logic here
-      console.log('Form submitted:', formData);
+      setIsLoading(true);
+      setRegistrationError('');
+
+      try {
+        // Remove confirmPassword before sending to API
+        const { confirmPassword, ...registrationData } = formData;
+        await AuthService.register(registrationData);
+        
+        // Automatically log in after successful registration
+        const loginResponse = await AuthService.login({
+          email: formData.email,
+          password: formData.password
+        });
+
+        // Redirect to dashboard or wherever appropriate
+        navigate('/dashboard');
+      } catch (error) {
+        console.error("Registration Error:", error.response || error.message);
+        setRegistrationError(error.message || 'Registration failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -114,6 +130,12 @@ const RegisterPage = () => {
                   <p className="text-light">Get started with InfoLock</p>
                 </div>
 
+                {registrationError && (
+                  <div className="alert alert-danger" role="alert">
+                    {registrationError}
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmit}>
                   <div className="mb-3">
                     <label className="form-label text-light">Full Name</label>
@@ -124,6 +146,7 @@ const RegisterPage = () => {
                       placeholder="Enter your name"
                       value={formData.name}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.name && <div className="invalid-feedback">{errors.name}</div>}
                   </div>
@@ -137,6 +160,7 @@ const RegisterPage = () => {
                       placeholder="Enter your Contact Number"
                       value={formData.phoneno}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.phoneno && <div className="invalid-feedback">{errors.phoneno}</div>}
                   </div>
@@ -150,6 +174,7 @@ const RegisterPage = () => {
                       placeholder="Enter your email"
                       value={formData.email}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.email && <div className="invalid-feedback">{errors.email}</div>}
                   </div>
@@ -163,6 +188,7 @@ const RegisterPage = () => {
                       placeholder="Create a password"
                       value={formData.password}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.password && <div className="invalid-feedback">{errors.password}</div>}
                     {formData.password && (
@@ -189,12 +215,20 @@ const RegisterPage = () => {
                       placeholder="Confirm your password"
                       value={formData.confirmPassword}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
                   </div>
 
-                  <button type="submit" className="btn btn-primary w-100 mb-3">
-                    Create Account
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary w-100 mb-3"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    ) : null}
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
                   </button>
 
                   <div className="text-center text-light">
@@ -209,4 +243,5 @@ const RegisterPage = () => {
     </div>
   );
 };
+
 export default RegisterPage;

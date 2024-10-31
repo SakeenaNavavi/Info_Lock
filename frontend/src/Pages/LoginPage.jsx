@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Shield} from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AuthService } from '../services/authService';
 import '../styles/styles.css';
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -9,6 +11,8 @@ const LoginPage = () => {
     password: '',
   });
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -16,6 +20,7 @@ const LoginPage = () => {
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+    setLoginError(''); // Clear general login error when user types
   };
 
   const validateForm = () => {
@@ -36,11 +41,21 @@ const LoginPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      // Add login logic here
-      console.log('Form submitted:', formData);
+      setIsLoading(true);
+      setLoginError('');
+      
+      try {
+        const response = await AuthService.login(formData);
+        // Successful login
+        navigate('/dashboard'); // or wherever you want to redirect after login
+      } catch (error) {
+        setLoginError(error.message || 'Login failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -57,6 +72,12 @@ const LoginPage = () => {
                   <p className="text-light">Please login to your account</p>
                 </div>
 
+                {loginError && (
+                  <div className="alert alert-danger" role="alert">
+                    {loginError}
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmit}>
                   <div className="mb-3">
                     <label className="form-label text-light">Email Address</label>
@@ -67,6 +88,7 @@ const LoginPage = () => {
                       placeholder="Enter your email"
                       value={formData.email}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.email && <div className="invalid-feedback">{errors.email}</div>}
                   </div>
@@ -80,6 +102,7 @@ const LoginPage = () => {
                       placeholder="Enter your password"
                       value={formData.password}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                     {errors.password && <div className="invalid-feedback">{errors.password}</div>}
                   </div>
@@ -88,8 +111,15 @@ const LoginPage = () => {
                     <a href="#" className="text-primary text-decoration-none">Forgot Password?</a>
                   </div>
 
-                  <button type="submit" className="btn btn-primary w-100 mb-3">
-                    Sign In
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary w-100 mb-3"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    ) : null}
+                    {isLoading ? 'Signing In...' : 'Sign In'}
                   </button>
 
                   <div className="text-center text-light">
@@ -104,4 +134,5 @@ const LoginPage = () => {
     </div>
   );
 };
+
 export default LoginPage;
