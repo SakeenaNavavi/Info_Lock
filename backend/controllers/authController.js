@@ -136,27 +136,27 @@ class AuthController {
     static async verifyEmail(req, res) {
         try {
             const { token } = req.params;
-
-            // Find user with matching token
+    
+            // Find the user by token and check if it's still valid and not expired
             const user = await UserModel.findOne({
                 verificationToken: token,
-                tokenExpiry: { $gt: new Date() },
+                tokenExpiry: { $gt: new Date() }, // Ensure token hasn't expired
                 isVerified: false  // Only verify if not already verified
             });
-
+    
             if (!user) {
                 console.log('Verification failed: Invalid or expired token');
                 return res.status(400).json({
                     message: 'Invalid or expired verification token. Please request a new verification email.'
                 });
             }
-
+    
             // Update user verification status
             user.isVerified = true;
             user.verificationToken = undefined;
             user.tokenExpiry = undefined;
             await user.save();
-
+    
             console.log(`User ${user.email} verified successfully`);
             res.json({
                 message: 'Email verified successfully',
@@ -169,7 +169,7 @@ class AuthController {
                 error: error.message
             });
         }
-    }
+    }    
 
     static async resendVerification(req, res) {
         try {

@@ -6,7 +6,7 @@ export class AuthService {
   static TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
   
   // Base API URL - use environment variable if available
-  static API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api/auth/';
+  static API_URL = `${process.env.REACT_APP_API_URL}` || 'http://localhost:5000';
 
   // Axios instance with default config
   static axiosInstance = (() => {
@@ -18,7 +18,7 @@ export class AuthService {
       },
       withCredentials: true // Important for CORS if using cookies
     });
-
+    console.log(instance.defaults.baseURL);
     // Request interceptor
     instance.interceptors.request.use(
       config => {
@@ -83,7 +83,7 @@ export class AuthService {
       // First, hash the password client-side before transmission
       const securePassword = this.securePasswordForTransit(userData.password);
       
-      const response = await this.axiosInstance.post('register', {
+      const response = await this.axiosInstance.post('/api/auth/register', {
         ...userData,
         password: securePassword
       });
@@ -128,7 +128,7 @@ export class AuthService {
       // Secure password for transit
       const securePassword = this.securePasswordForTransit(credentials.password);
       
-      const response = await this.axiosInstance.post('login', {
+      const response = await this.axiosInstance.post('/api/auth/login', {
         email: credentials.email,
         password: securePassword
       });
@@ -202,11 +202,19 @@ export class AuthService {
     return localStorage.getItem('token');
   }
   static async verifyEmail(token) {
-    const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/verify-email/${token}`);
-    return response.data;
+    try {
+        const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/auth/verify-email/${token}`);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
 }
-  static async resendVerification(email) {
-    const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/resend-verification`, { email });
-    return response.data;
+static async resendVerification(email) {
+  try {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/resend-verification`, { email });
+      return response.data;
+  } catch (error) {
+      throw error.response?.data || error.message;
   }
+}
 }
