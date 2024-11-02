@@ -29,7 +29,13 @@ const userSchema = new Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  isVerified: 
+  { type: Boolean, default: false 
+    
+  },
+  verificationToken: String,
+  tokenExpiry: Date
 });
 
 // Add index on email field for faster lookups

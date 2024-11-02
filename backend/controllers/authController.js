@@ -137,14 +137,17 @@ class AuthController {
         try {
             const { token } = req.params;
 
+            // Find user with matching token
             const user = await UserModel.findOne({
                 verificationToken: token,
-                tokenExpiry: { $gt: new Date() }
+                tokenExpiry: { $gt: new Date() },
+                isVerified: false  // Only verify if not already verified
             });
 
             if (!user) {
+                console.log('Verification failed: Invalid or expired token');
                 return res.status(400).json({
-                    message: 'Invalid or expired verification token'
+                    message: 'Invalid or expired verification token. Please request a new verification email.'
                 });
             }
 
@@ -154,12 +157,17 @@ class AuthController {
             user.tokenExpiry = undefined;
             await user.save();
 
+            console.log(`User ${user.email} verified successfully`);
             res.json({
-                message: 'Email verified successfully'
+                message: 'Email verified successfully',
+                success: true
             });
         } catch (error) {
             console.error('Verification error:', error);
-            res.status(500).json({ message: 'Verification failed', error: error.message });
+            res.status(500).json({
+                message: 'Verification failed. Please try again.',
+                error: error.message
+            });
         }
     }
 
@@ -178,8 +186,9 @@ class AuthController {
 
             // Generate new verification token
             const verificationToken = crypto.randomBytes(32).toString('hex');
-            const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+            // Update user with new token
             user.verificationToken = verificationToken;
             user.tokenExpiry = tokenExpiry;
             await user.save();
@@ -187,12 +196,17 @@ class AuthController {
             // Send new verification email
             await AuthController.sendVerificationEmail(email, verificationToken);
 
+            console.log(`Verification email resent to ${email}`);
             res.json({
-                message: 'Verification email has been resent'
+                message: 'Verification email has been resent. Please check your inbox.',
+                success: true
             });
         } catch (error) {
             console.error('Resend verification error:', error);
-            res.status(500).json({ message: 'Failed to resend verification email', error: error.message });
+            res.status(500).json({
+                message: 'Failed to resend verification email',
+                error: error.message
+            });
         }
     }
 
@@ -223,7 +237,13 @@ class AuthController {
             `
         };
 
-        await transporter.sendMail(mailOptions);
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log(`Verification email sent to ${email}`);
+        } catch (error) {
+            console.error('Error sending verification email:', error);
+            throw new Error('Failed to send verification email');
+        }
     }
     static async logout(req, res) {
         try {
@@ -264,3 +284,4 @@ class AuthController {
 
 // Export the controller
 module.exports = AuthController;
+

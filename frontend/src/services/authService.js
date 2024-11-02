@@ -201,4 +201,12 @@ export class AuthService {
   static getToken() {
     return localStorage.getItem('token');
   }
+  static async verifyEmail(token) {
+    const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/verify-email/${token}`);
+    return response.data;
+}
+  static async resendVerification(email) {
+    const response = await axios.post(`${process.env.REACT_APP_API_BASE_URL}/resend-verification`, { email });
+    return response.data;
+  }
 }
