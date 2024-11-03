@@ -4,6 +4,7 @@ import LandingPage from './Pages/LandingPage';
 import RegisterPage from './Pages/RegisterPage';
 import LoginPage from './Pages/LoginPage';
 import VerifyEmail from './Components/VerifyEmail';
+import AdminLoginPage from './Pages/AdminLoginPage';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
+        <Route path="/admin" element={<AdminLoginPage />} />
       </Routes>
     </BrowserRouter>
     </div>

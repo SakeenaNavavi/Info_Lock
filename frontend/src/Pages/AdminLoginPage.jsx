@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ShieldCog, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shield, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '../Components/ui/alert';
+import { Card, CardContent, CardHeader, CardTitle } from '../Components/ui/Card';
+
 
 const AdminLoginPage = () => {
   const [formData, setFormData] = useState({
@@ -64,7 +65,7 @@ const AdminLoginPage = () => {
       <div className="w-full max-w-md">
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader className="space-y-1 flex flex-col items-center">
-            <ShieldCog className="h-12 w-12 text-blue-500 mb-2" />
+            <Shield className="h-12 w-12 text-blue-500 mb-2" />
             <CardTitle className="text-2xl font-bold text-white">Admin Portal</CardTitle>
             <p className="text-slate-400 text-sm">Secure administrative access only</p>
           </CardHeader>
