@@ -1,5 +1,7 @@
 const UserModel = require('../models/userModel');
 const AdminModel = require('../models/adminModel');
+const speakeasy = require('speakeasy');
+const { validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');

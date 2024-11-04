@@ -1,3 +1,4 @@
+const { body } = require('express-validator');
 const validateRegistration = (req, res, next) => {
     const { email, password, name, phoneno } = req.body;
   
