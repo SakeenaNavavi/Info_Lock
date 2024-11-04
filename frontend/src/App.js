@@ -15,7 +15,7 @@ function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
-        <Route path="/admin" element={<AdminLoginPage />} />
+        <Route path="/admin-login" element={<AdminLoginPage />} />
       </Routes>
     </BrowserRouter>
     </div>

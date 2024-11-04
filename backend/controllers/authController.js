@@ -1,4 +1,5 @@
 const UserModel = require('../models/userModel');
+const AdminModel = require('../models/adminModel');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -136,27 +137,27 @@ class AuthController {
     static async verifyEmail(req, res) {
         try {
             const { token } = req.params;
-    
+
             // Find the user by token and check if it's still valid and not expired
             const user = await UserModel.findOne({
                 verificationToken: token,
                 tokenExpiry: { $gt: new Date() }, // Ensure token hasn't expired
                 isVerified: false  // Only verify if not already verified
             });
-    
+
             if (!user) {
                 console.log('Verification failed: Invalid or expired token');
                 return res.status(400).json({
                     message: 'Invalid or expired verification token. Please request a new verification email.'
                 });
             }
-    
+
             // Update user verification status
             user.isVerified = true;
             user.verificationToken = undefined;
             user.tokenExpiry = undefined;
             await user.save();
-    
+
             console.log(`User ${user.email} verified successfully`);
             res.json({
                 message: 'Email verified successfully',
@@ -169,7 +170,7 @@ class AuthController {
                 error: error.message
             });
         }
-    }    
+    }
 
     static async resendVerification(req, res) {
         try {
@@ -280,6 +281,77 @@ class AuthController {
             { expiresIn: '24h' }
         );
     }
+    static generateAdminToken(adminId){
+        return jwt.sign(
+          { id: adminId },
+          AuthController.JWT_SECRET,
+          { expiresIn: '1h' }
+        );
+      };
+      
+      static async adminLogin(req, res){
+        try {
+          const errors = validationResult(req);
+          if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+          }
+      
+          const { username, password, securityCode } = req.body;
+      
+          // Find admin by username
+          const admin = await AdminModel.findOne({ username });
+          if (!admin) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+          }
+      
+          // Check if account is locked
+          if (admin.isLocked && admin.lockUntil > Date.now()) {
+            return res.status(403).json({
+              message: 'Account is temporarily locked. Please try again later.',
+              lockUntil: admin.lockUntil
+            });
+          }
+      
+          // Verify password
+          const isPasswordValid = await admin.comparePassword(password);
+          if (!isPasswordValid) {
+            await admin.handleFailedLogin();
+            return res.status(401).json({ message: 'Invalid credentials' });
+          }
+      
+          // Verify 2FA code
+          const isValidToken = speakeasy.totp.verify({
+            secret: admin.twoFactorSecret,
+            encoding: 'base32',
+            token: securityCode,
+            window: 1 // Allows for 30 seconds of time drift
+          });
+      
+          if (!isValidToken) {
+            await admin.handleFailedLogin();
+            return res.status(401).json({ message: 'Invalid security code' });
+          }
+      
+          // Reset login attempts and update last login
+          await admin.resetLoginAttempts();
+      
+          // Generate JWT token
+          const token = generateAdminToken(admin._id);
+      
+          res.json({
+            message: 'Login successful',
+            token,
+            admin: {
+              id: admin._id,
+              username: admin.username,
+              lastLogin: admin.lastLogin
+            }
+          });
+        } catch (error) {
+          console.error('Login error:', error);
+          res.status(500).json({ message: 'Internal server error' });
+        }
+      };
 }
 
 // Export the controller

@@ -38,7 +38,21 @@ const validateRegistration = (req, res, next) => {
     next();
   };
   
+  const adminLoginValidation = [
+    body('username').trim().notEmpty().withMessage('Username is required'),
+    body('password').notEmpty().withMessage('Password is required'),
+    body('securityCode')
+      .trim()
+      .notEmpty()
+      .withMessage('Security code is required')
+      .isLength({ min: 6, max: 6 })
+      .withMessage('Security code must be 6 digits')
+      .isNumeric()
+      .withMessage('Security code must contain only numbers')
+  ];
+
   module.exports = {
+    adminLoginValidation,
     validateRegistration,
     validateLogin
   };
