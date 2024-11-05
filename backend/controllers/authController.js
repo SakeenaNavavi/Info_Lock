@@ -338,7 +338,7 @@ class AuthController {
           await admin.resetLoginAttempts();
       
           // Generate JWT token
-          const token = generateAdminToken(admin._id);
+          const token = AuthController.generateAdminToken(admin._id);
       
           res.json({
             message: 'Login successful',
@@ -351,6 +351,27 @@ class AuthController {
           });
         } catch (error) {
           console.error('Login error:', error);
+          res.status(500).json({ message: 'Internal server error' });
+        }
+      };
+      static async setupTwoFactor(req, res) {
+        try {
+          const { adminId } = req.params;
+          
+          const secret = speakeasy.generateSecret({
+            name: `Admin Portal (${process.env.APP_NAME})`
+          });
+      
+          await Admin.findByIdAndUpdate(adminId, {
+            twoFactorSecret: secret.base32
+          });
+      
+          res.json({
+            secret: secret.base32,
+            otpauth_url: secret.otpauth_url
+          });
+        } catch (error) {
+          console.error('2FA setup error:', error);
           res.status(500).json({ message: 'Internal server error' });
         }
       };
