@@ -3,6 +3,7 @@ import { Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthService } from '../services/authService';
 import '../styles/styles.css';
+import ReCAPTCHA from 'react-google-recaptcha';
 import zxcvbn from 'zxcvbn';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/;
@@ -24,6 +25,11 @@ const RegisterPage = () => {
   const [registrationError, setRegistrationError] = useState('');
   const [showVerificationMessage, setShowVerificationMessage] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+const [captchaValue, setCaptchaValue] = useState(null);
+
+  const handleCaptchaChange = (value) => {
+setCaptchaValue(value);
+ };
 
   const validatePassword = (password) => {
     if (!PASSWORD_REGEX.test(password)) {
@@ -93,6 +99,10 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!captchaValue) {
+      alert('Please complete the CAPTCHA');
+      return;
+    }
     if (validateForm()) {
       setIsLoading(true);
       setRegistrationError('');
@@ -273,6 +283,10 @@ const RegisterPage = () => {
                     />
                     {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
                   </div>
+                  <ReCAPTCHA
+                    sitekey="6LdrRXcqAAAAADT4_VrmwUrMuJEsECLez8LTXoSB" 
+                    onChange={handleCaptchaChange}
+                  />
 
                   <button
                     type="submit"

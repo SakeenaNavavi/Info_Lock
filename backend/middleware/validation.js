@@ -1,4 +1,4 @@
-const { body } = require('express-validator');
+const { body,validationResult } = require('express-validator');
 const validateRegistration = (req, res, next) => {
     const { email, password, name, phoneno } = req.body;
   
@@ -52,8 +52,20 @@ const validateRegistration = (req, res, next) => {
       .withMessage('Security code must contain only numbers')
   ];
 
+  const validateAdminLoginRequest = (req, res, next) => {
+    console.log('Request Body:', req.body);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array()); // Log the errors
+      return res.status(401).json({ errors: errors.array() });
+    }
+    next();
+  };
+  
+
   module.exports = {
     adminLoginValidation,
+    validateAdminLoginRequest,
     validateRegistration,
     validateLogin
   };

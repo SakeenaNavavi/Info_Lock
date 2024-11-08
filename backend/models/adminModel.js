@@ -42,18 +42,23 @@ adminSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
+    console.log("Hashing password for:", this.password); // Debugging
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
+    console.log("Hashed password:", this.password); // Debugging
     next();
   } catch (error) {
     next(error);
   }
 });
 
+
 // Method to compare passwords
 adminSchema.methods.comparePassword = async function(candidatePassword) {
+  console.log("Comparing:", candidatePassword, this.password); // For debugging
   return bcrypt.compare(candidatePassword, this.password);
 };
+
 
 // Method to handle failed login attempts
 adminSchema.methods.handleFailedLogin = async function() {

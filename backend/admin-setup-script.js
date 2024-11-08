@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Admin = require('./models/adminModel');
 const speakeasy = require('speakeasy');
 const readline = require('readline');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
 const rl = readline.createInterface({
@@ -25,14 +26,17 @@ const connectDB = async () => {
 const createAdmin = async () => {
   try {
     const username = await promptInput('Enter admin username: ');
-    const password = await promptInput('Enter admin password: ', true);
+    const plainPassword = await promptInput('Enter admin password: ', true);
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(plainPassword, 12); // 12 salt rounds
 
     // Generate 2FA secret
     const secret = speakeasy.generateSecret({ length: 20 });
 
     const admin = new Admin({
       username,
-      password,
+      password: hashedPassword, // Save the hashed password
       twoFactorSecret: secret.base32
     });
 

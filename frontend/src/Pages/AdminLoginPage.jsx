@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Shield, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '../Components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '../Components/ui/Card';
+import { AuthService } from '../services/authService';
+import ReCAPTCHA from 'react-google-recaptcha';
+
 
 
 const AdminLoginPage = () => {
@@ -13,14 +16,16 @@ const AdminLoginPage = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [captchaValue, setCaptchaValue] = useState(null);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-    setLoginError('');
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+  const handleCaptchaChange = (value) => {
+    setCaptchaValue(value);
   };
 
   const validateForm = () => {
@@ -41,24 +46,59 @@ const AdminLoginPage = () => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      setIsLoading(true);
-      setLoginError('');
-      
-      try {
-        // Simulated API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        // Handle successful login here
-      } catch (error) {
-        setLoginError('Invalid admin credentials. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
+
+    if (!captchaValue) {
+      alert("Please complete the reCAPTCHA");
+      return;
+    }
+
+    try {
+      const securePassword = AuthService.securePasswordForTransit(formData.password);
+      const response = await AuthService.adminLogin({
+        username: formData.username,
+        password: securePassword,
+        securityCode: formData.securityCode
+      });
+      alert("Login successful");
+      // Handle successful login (e.g., redirect to admin dashboard)
+    } catch (error) {
+      console.error("Login error:", error);
+      alert(error.message || "Login failed");
     }
   };
+
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   console.log("Form submitted");
+  //   console.log("Form Data:", formData);
+  //   if (validateForm()) {
+  //     setIsLoading(true);
+  //     setLoginError('');
+      
+  //     try {
+  //       const response = await fetch('http://localhost:5000/api/auth/admin-login', {
+  //         method: 'POST',
+  //         headers: { 'Content-Type': 'application/json' },
+  //         body: JSON.stringify(formData),
+  //       });
+        
+  //       if (!response.ok) {
+  //         throw new Error('Invalid admin credentials. Please try again.');
+  //       }
+  
+  //       const data = await response.json();
+  //       console.log("Login successful:", data);
+  //       // Handle success (e.g., redirect or store token)
+  //     } 
+  //     catch (error) {
+  //       setLoginError('Invalid admin credentials. Please try again.');
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -138,7 +178,11 @@ const AdminLoginPage = () => {
                   <p className="text-sm text-red-500">{errors.securityCode}</p>
                 )}
               </div>
-
+                      {/* reCAPTCHA for additional security */}
+        <ReCAPTCHA
+          sitekey="6LdrRXcqAAAAADT4_VrmwUrMuJEsECLez8LTXoSB"
+          onChange={handleCaptchaChange}
+        />
               <button
                 type="submit"
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

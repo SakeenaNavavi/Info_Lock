@@ -1,7 +1,6 @@
 const UserModel = require('../models/userModel');
 const AdminModel = require('../models/adminModel');
 const speakeasy = require('speakeasy');
-const { validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -291,69 +290,43 @@ class AuthController {
         );
       };
       
-      static async adminLogin(req, res){
-        try {
-          const errors = validationResult(req);
-          if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
-          }
+      static async adminLogin(req, res) {
+        const { username, password, securityCode } = req.body;
+        console.log("Received login request:", req.body);
       
-          const { username, password, securityCode } = req.body;
-      
-          // Find admin by username
-          const admin = await AdminModel.findOne({ username });
-          if (!admin) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-          }
-      
-          // Check if account is locked
-          if (admin.isLocked && admin.lockUntil > Date.now()) {
-            return res.status(403).json({
-              message: 'Account is temporarily locked. Please try again later.',
-              lockUntil: admin.lockUntil
-            });
-          }
-      
-          // Verify password
-          const isPasswordValid = await admin.comparePassword(password);
-          if (!isPasswordValid) {
-            await admin.handleFailedLogin();
-            return res.status(401).json({ message: 'Invalid credentials' });
-          }
-      
-          // Verify 2FA code
-          const isValidToken = speakeasy.totp.verify({
-            secret: admin.twoFactorSecret,
-            encoding: 'base32',
-            token: securityCode,
-            window: 1 // Allows for 30 seconds of time drift
-          });
-      
-          if (!isValidToken) {
-            await admin.handleFailedLogin();
-            return res.status(401).json({ message: 'Invalid security code' });
-          }
-      
-          // Reset login attempts and update last login
-          await admin.resetLoginAttempts();
-      
-          // Generate JWT token
-          const token = AuthController.generateAdminToken(admin._id);
-      
-          res.json({
-            message: 'Login successful',
-            token,
-            admin: {
-              id: admin._id,
-              username: admin.username,
-              lastLogin: admin.lastLogin
-            }
-          });
-        } catch (error) {
-          console.error('Login error:', error);
-          res.status(500).json({ message: 'Internal server error' });
+        const admin = await AdminModel.findOne({ username });
+        if (!admin) {
+          console.log("Admin not found");
+          return res.status(401).json({ message: 'Invalid credentials' });
         }
-      };
+      
+        // Verify password
+        const isPasswordValid = await admin.comparePassword(password);
+        console.log("Password validation:", isPasswordValid);
+        if (!isPasswordValid) {
+          return res.status(401).json({ message: 'Invalid credentials' });
+        }
+      
+        // Verify 2FA token
+        const isValidToken = speakeasy.totp.verify({
+          secret: admin.twoFactorSecret,
+          encoding: 'base32',
+          token: securityCode,
+          window: 1,
+        });
+        console.log("2FA validation:", isValidToken);
+      
+        if (!isValidToken) {
+          return res.status(401).json({ message: 'Invalid security code' });
+        }
+      
+        // Generate JWT token on successful login
+        const token = AuthController.generateAdminToken(admin._id);
+        return res.json({ message: 'Login successful', token });
+      }
+      
+    
+    
       static async setupTwoFactor(req, res) {
         try {
           const { adminId } = req.params;
@@ -362,7 +335,7 @@ class AuthController {
             name: `Admin Portal (${process.env.APP_NAME})`
           });
       
-          await Admin.findByIdAndUpdate(adminId, {
+          await AdminModel.findByIdAndUpdate(adminId, {
             twoFactorSecret: secret.base32
           });
       

@@ -217,4 +217,33 @@ static async resendVerification(email) {
       throw error.response?.data || error.message;
   }
 }
+// Add adminLogin method in AuthService
+static async adminLogin(formData) {
+  try {
+    if (!this.TRANSIT_KEY) {
+      console.error('TRANSIT_KEY is not set in environment variables');
+      throw new Error('Configuration error: TRANSIT_KEY is missing');
+    }
+
+    // Secure password for transit
+    const securePassword = this.securePasswordForTransit(formData.password);
+
+    const response = await this.axiosInstance.post('/api/auth/admin-login', {
+      username: formData.username,
+      password: securePassword,
+      securityCode: formData.securityCode
+    });
+
+    if (response.data.token) {
+      localStorage.setItem('adminToken', response.data.token);
+      this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+    }
+
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Admin login failed';
+    throw new Error(errorMessage);
+  }
+}
+
 }
