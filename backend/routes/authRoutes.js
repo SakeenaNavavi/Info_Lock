@@ -12,7 +12,7 @@ router.post('/logout', AuthController.logout);
 router.get('/verify-email/:token', AuthController.verifyEmail);
 router.post('/resend-verification', AuthController.resendVerification);
 // router.post('/admin-login', adminLoginValidation,validateAdminLoginRequest, AuthController.adminLogin);
-router.post('/admin-login', adminController.adminLogin);
-router.post('/setup-2fa/:adminId', authMiddleware, AuthController.setupTwoFactor);
+router.post('/admin-login',adminLoginValidation, adminController.login);
+router.post('/setup-2fa/:adminId', authMiddleware, adminController.setupTwoFactor);
 
 module.exports = router;

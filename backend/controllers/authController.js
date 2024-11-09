@@ -325,29 +325,6 @@ class AuthController {
         return res.json({ message: 'Login successful', token });
       }
       
-    
-    
-      static async setupTwoFactor(req, res) {
-        try {
-          const { adminId } = req.params;
-          
-          const secret = speakeasy.generateSecret({
-            name: `Admin Portal (${process.env.APP_NAME})`
-          });
-      
-          await AdminModel.findByIdAndUpdate(adminId, {
-            twoFactorSecret: secret.base32
-          });
-      
-          res.json({
-            secret: secret.base32,
-            otpauth_url: secret.otpauth_url
-          });
-        } catch (error) {
-          console.error('2FA setup error:', error);
-          res.status(500).json({ message: 'Internal server error' });
-        }
-      };
 }
 
 // Export the controller

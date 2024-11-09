@@ -5,6 +5,8 @@ import RegisterPage from './Pages/RegisterPage';
 import LoginPage from './Pages/LoginPage';
 import VerifyEmail from './Components/VerifyEmail';
 import AdminLoginPage from './Pages/AdminLoginPage';
+import AdminDashboard from './Pages/AdminDashboard';
+import { UserDashboard } from './Pages/UserDashboard';
 
 function App() {
   return (
@@ -16,6 +18,8 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
         <Route path="/admin-login" element={<AdminLoginPage />} />
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+        <Route path='/dashboard' element={<UserDashboard />} />
       </Routes>
     </BrowserRouter>
     </div>

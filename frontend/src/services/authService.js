@@ -4,7 +4,7 @@ import crypto from 'crypto-js';
 export class AuthService {
   // Client-side temporary key for initial password protection during transit
   static TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
-  
+
   // Base API URL - use environment variable if available
   static API_URL = `${process.env.REACT_APP_API_URL}` || 'http://localhost:5000';
 
@@ -82,20 +82,20 @@ export class AuthService {
 
       // First, hash the password client-side before transmission
       const securePassword = this.securePasswordForTransit(userData.password);
-      
+
       const response = await this.axiosInstance.post('/api/auth/register', {
         ...userData,
         password: securePassword
       });
-      
+
       return response.data;
     } catch (error) {
       // Enhanced error handling
       if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                           error.response.data?.error || 
-                           'Registration failed';
-        
+        const errorMessage = error.response.data?.message ||
+          error.response.data?.error ||
+          'Registration failed';
+
         if (error.response.status === 409) {
           throw new Error('Email already exists');
         } else if (error.response.status === 400) {
@@ -127,27 +127,27 @@ export class AuthService {
 
       // Secure password for transit
       const securePassword = this.securePasswordForTransit(credentials.password);
-      
+
       const response = await this.axiosInstance.post('/api/auth/login', {
         email: credentials.email,
         password: securePassword
       });
-      
+
       if (response.data.token) {
         // Store auth token
         localStorage.setItem('token', response.data.token);
-        
+
         // Update axios instance headers for subsequent requests
         this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       }
-      
+
       return response.data;
     } catch (error) {
       if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                           error.response.data?.error || 
-                           'Login failed';
-                           
+        const errorMessage = error.response.data?.message ||
+          error.response.data?.error ||
+          'Login failed';
+
         if (error.response.status === 401) {
           throw new Error('Invalid email or password');
         } else if (error.response.status === 400) {
@@ -169,10 +169,10 @@ export class AuthService {
     try {
       // Clear token from localStorage
       localStorage.removeItem('token');
-      
+
       // Clear Authorization header
       delete this.axiosInstance.defaults.headers.common['Authorization'];
-      
+
       // Optional: Call logout endpoint if your backend requires it
       await this.axiosInstance.post('logout');
     } catch (error) {
@@ -203,47 +203,75 @@ export class AuthService {
   }
   static async verifyEmail(token) {
     try {
-        const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/auth/verify-email/${token}`);
-        return response.data;
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/auth/verify-email/${token}`);
+      return response.data;
     } catch (error) {
-        throw error.response?.data || error.message;
+      throw error.response?.data || error.message;
     }
-}
-static async resendVerification(email) {
-  try {
+  }
+  static async resendVerification(email) {
+    try {
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/resend-verification`, { email });
       return response.data;
-  } catch (error) {
+    } catch (error) {
       throw error.response?.data || error.message;
-  }
-}
-// Add adminLogin method in AuthService
-static async adminLogin(formData) {
-  try {
-    if (!this.TRANSIT_KEY) {
-      console.error('TRANSIT_KEY is not set in environment variables');
-      throw new Error('Configuration error: TRANSIT_KEY is missing');
     }
-
-    // Secure password for transit
-    const securePassword = this.securePasswordForTransit(formData.password);
-
-    const response = await this.axiosInstance.post('/api/auth/admin-login', {
-      username: formData.username,
-      password: securePassword,
-      securityCode: formData.securityCode
-    });
-
-    if (response.data.token) {
-      localStorage.setItem('adminToken', response.data.token);
-      this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-    }
-
-    return response.data;
-  } catch (error) {
-    const errorMessage = error.response?.data?.message || 'Admin login failed';
-    throw new Error(errorMessage);
   }
-}
 
+
+
+
+
+  static async adminLogin(credentials) {
+    try {
+      if (!this.TRANSIT_KEY) {
+        console.error('TRANSIT_KEY is not set in environment variables');
+        throw new Error('Configuration error: TRANSIT_KEY is missing');
+      }
+
+      // Validate required fields
+      if (!credentials.username || !credentials.password || !credentials.securityCode) {
+        throw new Error('credentials are required');
+      }
+
+      // Secure password for transit
+      const securePassword = this.securePasswordForTransit(credentials.password);
+
+      const response = await this.axiosInstance.post('/api/auth/admin-login', {
+        username: credentials.username,
+        password: securePassword,
+        securityCode: credentials.securityCode
+      });
+
+      if (response.data.token) {
+        // Store auth token
+        localStorage.setItem('admin token', response.data.token);
+
+        // Update axios instance headers for subsequent requests
+        this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      }
+
+      return response.data;
+    } catch (error) {
+      if (error.response) {
+        const errorMessage = error.response.data?.message ||
+          error.response.data?.error ||
+          'Login failed';
+
+        if (error.response.status === 401) {
+          throw new Error('Invalid username or password');
+        } else if (error.response.status === 400) {
+          throw new Error(errorMessage);
+        } else {
+          throw new Error(`Login failed: ${errorMessage}`);
+        }
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+        throw new Error('Unable to reach the server. Please check your internet connection.');
+      } else {
+        console.error('Error setting up request:', error.message);
+        throw new Error(error.message || 'An unexpected error occurred');
+      }
+    }
+  }
 }

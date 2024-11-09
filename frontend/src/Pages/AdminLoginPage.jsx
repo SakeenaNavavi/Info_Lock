@@ -4,10 +4,12 @@ import { Alert, AlertDescription } from '../Components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '../Components/ui/Card';
 import { AuthService } from '../services/authService';
 import ReCAPTCHA from 'react-google-recaptcha';
-
+import AdminDashboard from './AdminDashboard';
+import { useNavigate} from 'react-router-dom';
 
 
 const AdminLoginPage = () => {
+  const Navigate=useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -48,26 +50,43 @@ const AdminLoginPage = () => {
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+  
     if (!captchaValue) {
       alert("Please complete the reCAPTCHA");
       return;
     }
-
+  
+    if (!validateForm()) {
+      return;
+    }
+  
+    setIsLoading(true);
     try {
       const securePassword = AuthService.securePasswordForTransit(formData.password);
-      const response = await AuthService.adminLogin({
+      console.log("Encrypted Password:", securePassword); // Debug log
+  
+      // Prepare credentials with encrypted password
+      const formdata = {
         username: formData.username,
         password: securePassword,
         securityCode: formData.securityCode
-      });
+      };
+      console.log("Credentials being sent:", formdata); // Debug log
+  
+      // Call admin login function in AuthService
+      const response = await AuthService.adminLogin(formdata);
+      console.log("Admin login response:", response); // Debug log
       alert("Login successful");
-      // Handle successful login (e.g., redirect to admin dashboard)
+      Navigate('/admin-dashboard');
+      // Redirect or handle login success as needed
     } catch (error) {
       console.error("Login error:", error);
-      alert(error.message || "Login failed");
+      setLoginError(error.message || "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
+  
 
   // const handleSubmit = async (e) => {
   //   e.preventDefault();

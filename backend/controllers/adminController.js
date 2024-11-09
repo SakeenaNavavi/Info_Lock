@@ -1,58 +1,105 @@
-const crypto = require('crypto-js');
+const crypto = require('crypto');
+const CryptoJS = require('crypto-js');
 const bcrypt = require('bcryptjs');
 const speakeasy = require('speakeasy');
-const Admin = require('../models/adminModel');
+const jwt = require('jsonwebtoken');
+const AdminModel = require('../models/adminModel');
 
-const TRANSIT_KEY = process.env.TRANSIT_KEY;
+class adminController {
+  static PEPPER = process.env.PASSWORD_PEPPER;
+  static JWT_SECRET = process.env.JWT_SECRET;
+  static SALT_ROUNDS = 12;
+  static TRANSIT_KEY = process.env.TRANSIT_KEY;
 
-// Decrypt password received during transit
-function decryptPassword(encryptedPassword) {
+  static applyPepper(password) {
+    return crypto
+      .createHmac('sha256', adminController.PEPPER)
+      .update(password)
+      .digest('hex');
+  }
+
+  static decryptTransitPassword(transitPassword) {
+    const bytes = CryptoJS.AES.decrypt(transitPassword, this.TRANSIT_KEY);
+    return bytes.toString(CryptoJS.enc.Utf8);
+  }
+  static generateAdminToken(adminId) {
+    return jwt.sign(
+      { id: adminId },
+      adminController.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+  };
+  static async login(req, res) {
     try {
-      const bytes = crypto.AES.decrypt(encryptedPassword, this.TRANSIT_KEY);
-      const decrypted = bytes.toString(crypto.enc.Utf8);
-      if (!decrypted) throw new Error("Decryption resulted in empty string");
-      return decrypted;
+      const { username, password: transitPassword, securityCode } = req.body;
+
+      // Decrypt the transit-protected password
+      const password = adminController.decryptTransitPassword(transitPassword);
+
+      // Find user
+      const admin = await AdminModel.findOne({ username });
+      if (!admin) {
+        return res.status(401).json({ message: 'User does not exist' });
+      }
+
+      // Combine password with pepper
+      const pepperedPassword = adminController.applyPepper(password);
+
+      // Verify password using stored salt
+      const isValid = await bcrypt.compare(pepperedPassword, admin.password);
+      if (!isValid) {
+        return res.status(401).json({ message: 'Invalid password' });
+      }
+
+      const isValidToken = speakeasy.totp.verify({
+        secret: admin.twoFactorSecret, // Assuming `twoFactorSecret` is stored in the admin model
+        encoding: 'base32',
+        token: securityCode,
+        window: 1, // Allows a slight timing variation
+      });
+
+      if (!isValidToken) {
+        return res.status(401).json({ message: 'Invalid security code' });
+      }
+
+      // Generate JWT token
+      const token = adminController.generateToken(admin);
+
+      res.json({
+        message: 'Login successful',
+        token,
+        admin: {
+          id: admin._id,
+          email: admin.email,
+          name: admin.name
+        }
+      });
     } catch (error) {
-      console.error('Decryption error:', error.message);
-      throw new Error('Failed to decrypt password');
+      console.error('Login error:', error);
+      res.status(500).json({ message: 'Login failed', error: error.message });
     }
   }
+  static async setupTwoFactor(req, res) {
+    try {
+      const { adminId } = req.params;
 
-exports.adminLogin = async (req, res) => {
-  const { username, password, securityCode } = req.body;
+      const secret = speakeasy.generateSecret({
+        name: `Admin Portal (${process.env.APP_NAME})`
+      });
 
-  try {
-    const admin = await Admin.findOne({ username });
-    if (!admin) {
-      return res.status(401).json({ message: 'Admin with credentials not found!' });
+      await AdminModel.findByIdAndUpdate(adminId, {
+        twoFactorSecret: secret.base32
+      });
+
+      res.json({
+        secret: secret.base32,
+        otpauth_url: secret.otpauth_url
+      });
+    } catch (error) {
+      console.error('2FA setup error:', error);
+      res.status(500).json({ message: 'Internal server error' });
     }
+  };
 
-    // Decrypt the password
-    const decryptedPassword = decryptPassword(password);
-
-    // Compare decrypted password with hashed password in the database
-    const isPasswordValid = await bcrypt.compare(decryptedPassword, admin.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Incorrect Password' });
-    }
-
-    // Verify 2FA code
-    const isValidToken = speakeasy.totp.verify({
-      secret: admin.twoFactorSecret,
-      encoding: 'base32',
-      token: securityCode,
-      window: 1,
-    });
-
-    if (!isValidToken) {
-      return res.status(401).json({ message: 'Invalid security code' });
-    }
-
-    // Generate and return JWT token on successful login
-    const token = AuthController.generateAdminToken(admin._id);
-    res.json({ message: 'Login successful', token });
-  } catch (error) {
-    console.error('Admin login error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+}
+module.exports = adminController;
