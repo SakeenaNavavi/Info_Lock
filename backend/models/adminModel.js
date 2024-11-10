@@ -13,10 +13,17 @@ const adminSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  twoFactorSecret: {
-    type: String,
-    required: true,
-  },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  }, 
+  otp: { 
+    type: String 
+  }, 
+  otpExpiresAt: { 
+    type: Date 
+  }, 
   lastLogin: {
     type: Date,
     default: null,
@@ -43,7 +50,7 @@ adminSchema.pre('save', async function(next) {
   
   try {
     console.log("Hashing password for:", this.password); // Debugging
-    const salt = await bcrypt.genSalt(12);
+    const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
     console.log("Hashed password:", this.password); // Debugging
     next();

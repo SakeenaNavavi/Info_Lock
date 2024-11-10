@@ -3,6 +3,7 @@ const Admin = require('./models/adminModel');
 const speakeasy = require('speakeasy');
 const readline = require('readline');
 const bcrypt = require('bcrypt');
+const adminController = require('./controllers/adminController');
 require('dotenv').config();
 
 const rl = readline.createInterface({
@@ -25,28 +26,43 @@ const connectDB = async () => {
 
 const createAdmin = async () => {
   try {
+    console.log('\n=== Admin Creation Debug Info ===');
+    
+    if (!process.env.PASSWORD_PEPPER) {
+      throw new Error('PASSWORD_PEPPER environment variable is not set');
+    }
+    
+    console.log('1. Environment Variables Check:');
+    console.log('- PASSWORD_PEPPER starts with:', process.env.PASSWORD_PEPPER.substring(0, 4));
+
     const username = await promptInput('Enter admin username: ');
     const plainPassword = await promptInput('Enter admin password: ', true);
+    const email = await promptInput('Enter admin email: ');
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(plainPassword, 12); // 12 salt rounds
-
-    // Generate 2FA secret
-    const secret = speakeasy.generateSecret({ length: 20 });
+    console.log('\n2. Password Processing Steps:');
+    console.log('- Plain password length:', plainPassword.length);
+    
+    const pepperedPassword = adminController.applyPepper(plainPassword);
+    console.log('- Peppered password length:', pepperedPassword.length);
+    console.log('- First 4 chars of peppered result:', pepperedPassword.substring(0, 4));
+    
+    const hashedPassword = await bcrypt.hash(pepperedPassword, 10); // Changed to 10 rounds
+    console.log('- Final hash length:', hashedPassword.length);
+    console.log('- First 4 chars of final hash:', hashedPassword.substring(0, 4));
 
     const admin = new Admin({
       username,
-      password: hashedPassword, // Save the hashed password
-      twoFactorSecret: secret.base32
+      password: hashedPassword,
+      email
     });
 
     await admin.save();
 
-    console.log(`Admin created successfully.`);
-    console.log(`2FA Setup:`);
-    console.log(`Secret: ${secret.base32}`);
-    console.log(`QR Code: ${secret.otpauth_url}`);
-    console.log(`Please scan the QR code or enter the secret key in your authenticator app.`);
+    console.log('\n3. Admin Created Successfully:');
+    console.log('- Username:', username);
+    console.log('- Email:', email);
+    console.log('- Stored hash length:', hashedPassword.length);
+    console.log('- First 4 chars of stored hash:', hashedPassword.substring(0, 4));
 
     rl.close();
   } catch (error) {
@@ -54,6 +70,7 @@ const createAdmin = async () => {
     rl.close();
   }
 };
+
 
 const promptInput = (question, hideInput = false) => {
   return new Promise((resolve) => {

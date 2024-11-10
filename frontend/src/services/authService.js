@@ -185,7 +185,22 @@ export class AuthService {
   // Initial protection for password during transit
   static securePasswordForTransit(password) {
     try {
-      return crypto.AES.encrypt(password, this.TRANSIT_KEY).toString();
+      if (!this.TRANSIT_KEY) {
+        throw new Error('TRANSIT_KEY is not configured');
+      }
+      
+      // Ensure the password is a string
+      const passwordStr = String(password);
+      
+      // Log length of password pre-encryption (remove in production)
+      console.log('Password length pre-encryption:', passwordStr.length);
+      
+      const encrypted = crypto.AES.encrypt(passwordStr, this.TRANSIT_KEY).toString();
+      
+      // Log encrypted password length (remove in production)
+      console.log('Encrypted password length:', encrypted.length);
+      
+      return encrypted;
     } catch (error) {
       console.error('Error encrypting password:', error);
       throw new Error('Failed to secure password');
@@ -225,53 +240,44 @@ export class AuthService {
   static async adminLogin(credentials) {
     try {
       if (!this.TRANSIT_KEY) {
-        console.error('TRANSIT_KEY is not set in environment variables');
-        throw new Error('Configuration error: TRANSIT_KEY is missing');
+        throw new Error('TRANSIT_KEY is not configured');
       }
-
+  
       // Validate required fields
-      if (!credentials.username || !credentials.password || !credentials.securityCode) {
-        throw new Error('credentials are required');
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username and password are required');
       }
-
+  
       // Secure password for transit
       const securePassword = this.securePasswordForTransit(credentials.password);
-
+  
+      // Log the encrypted password being sent (remove in production)
+      console.log('Sending encrypted password:', securePassword);
+  
       const response = await this.axiosInstance.post('/api/auth/admin-login', {
         username: credentials.username,
         password: securePassword,
-        securityCode: credentials.securityCode
       });
-
-      if (response.data.token) {
-        // Store auth token
-        localStorage.setItem('admin token', response.data.token);
-
-        // Update axios instance headers for subsequent requests
-        this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-      }
-
+  
       return response.data;
     } catch (error) {
-      if (error.response) {
-        const errorMessage = error.response.data?.message ||
-          error.response.data?.error ||
-          'Login failed';
-
-        if (error.response.status === 401) {
-          throw new Error('Invalid username or password');
-        } else if (error.response.status === 400) {
-          throw new Error(errorMessage);
-        } else {
-          throw new Error(`Login failed: ${errorMessage}`);
-        }
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-        throw new Error('Unable to reach the server. Please check your internet connection.');
-      } else {
-        console.error('Error setting up request:', error.message);
-        throw new Error(error.message || 'An unexpected error occurred');
-      }
+      console.error('Admin login error:', error);
+      throw error;
     }
   }
+  static async verifyOtp(username, otp) {
+    try {
+      const response = await this.axiosInstance.post('/api/auth/verify-otp', {
+        username,
+        otp,
+      });
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+      }
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  }
+  
 }

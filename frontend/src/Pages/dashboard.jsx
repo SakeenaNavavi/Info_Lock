@@ -16,7 +16,7 @@ import {
   Download
 } from 'lucide-react';
 
-const UserDashboard = () => {
+const Dashboard = () => {
   const [selectedTab, setSelectedTab] = useState('all');
   
   const storageUsed = 75; // percentage
@@ -158,4 +158,4 @@ const UserDashboard = () => {
   );
 };
 
-export default UserDashboard;
+export default Dashboard;

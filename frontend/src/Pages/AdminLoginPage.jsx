@@ -4,21 +4,20 @@ import { Alert, AlertDescription } from '../Components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '../Components/ui/Card';
 import { AuthService } from '../services/authService';
 import ReCAPTCHA from 'react-google-recaptcha';
-import AdminDashboard from './AdminDashboard';
-import { useNavigate} from 'react-router-dom';
-
+import { useNavigate } from 'react-router-dom';
 
 const AdminLoginPage = () => {
-  const Navigate=useNavigate();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    securityCode: ''
+    otp: '',
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [captchaValue, setCaptchaValue] = useState(null);
+  const [otpSent, setOtpSent] = useState(false); // New state to track OTP step
 
   const handleChange = (e) => {
     setFormData({
@@ -26,98 +25,48 @@ const AdminLoginPage = () => {
       [e.target.name]: e.target.value
     });
   };
+
   const handleCaptchaChange = (value) => {
     setCaptchaValue(value);
   };
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.username) {
-      newErrors.username = 'Admin username is required';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    }
-
-    if (!formData.securityCode || !/^\d{6}$/.test(formData.securityCode)) {
-      newErrors.securityCode = 'Please enter a valid 6-digit security code';
-    }
-
+    if (!formData.username) newErrors.username = 'Admin username is required';
+    if (!formData.password && !otpSent) newErrors.password = 'Password is required';
+    if (!formData.otp && otpSent) newErrors.otp = 'OTP is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
     if (!captchaValue) {
       alert("Please complete the reCAPTCHA");
       return;
     }
-  
-    if (!validateForm()) {
-      return;
-    }
-  
+    if (!validateForm()) return;
+
     setIsLoading(true);
     try {
-      const securePassword = AuthService.securePasswordForTransit(formData.password);
-      console.log("Encrypted Password:", securePassword); // Debug log
-  
-      // Prepare credentials with encrypted password
-      const formdata = {
-        username: formData.username,
-        password: securePassword,
-        securityCode: formData.securityCode
-      };
-      console.log("Credentials being sent:", formdata); // Debug log
-  
-      // Call admin login function in AuthService
-      const response = await AuthService.adminLogin(formdata);
-      console.log("Admin login response:", response); // Debug log
-      alert("Login successful");
-      Navigate('/admin-dashboard');
-      // Redirect or handle login success as needed
+      if (!otpSent) {
+        // Initial login request with username/password
+        const securePassword = formData.password;
+        const response = await AuthService.adminLogin({ username: formData.username, password: securePassword });
+        alert("OTP sent to your email");
+        setOtpSent(true); // Move to OTP step
+      } else {
+        // OTP verification step
+        const response = await AuthService.verifyOtp(formData.username, formData.otp);
+        alert("Login successful");
+        navigate('/admin-dashboard');
+      }
     } catch (error) {
-      console.error("Login error:", error);
       setLoginError(error.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
   };
-  
-
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
-  //   console.log("Form submitted");
-  //   console.log("Form Data:", formData);
-  //   if (validateForm()) {
-  //     setIsLoading(true);
-  //     setLoginError('');
-      
-  //     try {
-  //       const response = await fetch('http://localhost:5000/api/auth/admin-login', {
-  //         method: 'POST',
-  //         headers: { 'Content-Type': 'application/json' },
-  //         body: JSON.stringify(formData),
-  //       });
-        
-  //       if (!response.ok) {
-  //         throw new Error('Invalid admin credentials. Please try again.');
-  //       }
-  
-  //       const data = await response.json();
-  //       console.log("Login successful:", data);
-  //       // Handle success (e.g., redirect or store token)
-  //     } 
-  //     catch (error) {
-  //       setLoginError('Invalid admin credentials. Please try again.');
-  //     } finally {
-  //       setIsLoading(false);
-  //     }
-  //   }
-  // };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -137,71 +86,66 @@ const AdminLoginPage = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  name="username"
-                  className={`w-full px-3 py-2 bg-slate-900 border ${
-                    errors.username ? 'border-red-500' : 'border-slate-700'
-                  } rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                  placeholder="Enter admin username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                />
-                {errors.username && (
-                  <p className="text-sm text-red-500">{errors.username}</p>
-                )}
-              </div>
+              {!otpSent && (
+                <>
+                  {/* Username Field */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-200">Username</label>
+                    <input
+                      type="text"
+                      name="username"
+                      className={`w-full px-3 py-2 bg-slate-900 border ${errors.username ? 'border-red-500' : 'border-slate-700'} rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      placeholder="Enter admin username"
+                      value={formData.username}
+                      onChange={handleChange}
+                      disabled={isLoading}
+                    />
+                    {errors.username && <p className="text-sm text-red-500">{errors.username}</p>}
+                  </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  className={`w-full px-3 py-2 bg-slate-900 border ${
-                    errors.password ? 'border-red-500' : 'border-slate-700'
-                  } rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                  placeholder="Enter admin password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                />
-                {errors.password && (
-                  <p className="text-sm text-red-500">{errors.password}</p>
-                )}
-              </div>
+                  {/* Password Field */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-200">Password</label>
+                    <input
+                      type="password"
+                      name="password"
+                      className={`w-full px-3 py-2 bg-slate-900 border ${errors.password ? 'border-red-500' : 'border-slate-700'} rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      placeholder="Enter admin password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      disabled={isLoading}
+                    />
+                    {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
+                  </div>
+                </>
+              )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-200">
-                  2FA Security Code
-                </label>
-                <input
-                  type="text"
-                  name="securityCode"
-                  className={`w-full px-3 py-2 bg-slate-900 border ${
-                    errors.securityCode ? 'border-red-500' : 'border-slate-700'
-                  } rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                  placeholder="Enter 6-digit code"
-                  value={formData.securityCode}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  maxLength={6}
+              {/* OTP Input Field - Shown Only When OTP Has Been Sent */}
+              {otpSent && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-200">OTP Code</label>
+                  <input
+                    type="text"
+                    name="otp"
+                    className={`w-full px-3 py-2 bg-slate-900 border ${errors.otp ? 'border-red-500' : 'border-slate-700'} rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    placeholder="Enter OTP"
+                    value={formData.otp}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    maxLength={6}
+                  />
+                  {errors.otp && <p className="text-sm text-red-500">{errors.otp}</p>}
+                </div>
+              )}
+
+              {/* reCAPTCHA for Additional Security */}
+              {!otpSent && (
+                <ReCAPTCHA
+                  sitekey="6LdrRXcqAAAAADT4_VrmwUrMuJEsECLez8LTXoSB"
+                  onChange={handleCaptchaChange}
                 />
-                {errors.securityCode && (
-                  <p className="text-sm text-red-500">{errors.securityCode}</p>
-                )}
-              </div>
-                      {/* reCAPTCHA for additional security */}
-        <ReCAPTCHA
-          sitekey="6LdrRXcqAAAAADT4_VrmwUrMuJEsECLez8LTXoSB"
-          onChange={handleCaptchaChange}
-        />
+              )}
+
               <button
                 type="submit"
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -215,15 +159,11 @@ const AdminLoginPage = () => {
                     </svg>
                     Authenticating...
                   </span>
-                ) : (
-                  'Login to Admin Panel'
-                )}
+                ) : otpSent ? 'Verify OTP' : 'Login to Admin Panel'}
               </button>
 
               <div className="text-center text-sm text-slate-400">
-                <a href="/help" className="text-blue-400 hover:text-blue-300">
-                  Need help accessing the admin panel?
-                </a>
+                <a href="/help" className="text-blue-400 hover:text-blue-300">Need help accessing the admin panel?</a>
               </div>
             </form>
           </CardContent>
