@@ -24,6 +24,7 @@ const connectDB = async () => {
   }
 };
 
+// In admin-setup-script.js
 const createAdmin = async () => {
   try {
     console.log('\n=== Admin Creation Debug Info ===');
@@ -31,25 +32,44 @@ const createAdmin = async () => {
     if (!process.env.PASSWORD_PEPPER) {
       throw new Error('PASSWORD_PEPPER environment variable is not set');
     }
+    console.log('\n=== DETAILED ADMIN CREATION DEBUG ===');
     
-    console.log('1. Environment Variables Check:');
-    console.log('- PASSWORD_PEPPER starts with:', process.env.PASSWORD_PEPPER.substring(0, 4));
-
     const username = await promptInput('Enter admin username: ');
     const plainPassword = await promptInput('Enter admin password: ', true);
     const email = await promptInput('Enter admin email: ');
 
-    console.log('\n2. Password Processing Steps:');
-    console.log('- Plain password length:', plainPassword.length);
+    console.log('\n1. Input Verification:');
+    console.log('- Username:', username);
+    console.log('- Password:', plainPassword);
+    console.log('- Password length:', plainPassword.length);
     
-    const pepperedPassword = adminController.applyPepper(plainPassword);
-    console.log('- Peppered password length:', pepperedPassword.length);
-    console.log('- First 4 chars of peppered result:', pepperedPassword.substring(0, 4));
+    console.log('\n2. Environment Check:');
+    console.log('- PEPPER available:', !!process.env.PASSWORD_PEPPER);
+    console.log('- PEPPER first 4 chars:', process.env.PASSWORD_PEPPER.substring(0, 4));
     
-    const hashedPassword = await bcrypt.hash(pepperedPassword, 10); // Changed to 10 rounds
-    console.log('- Final hash length:', hashedPassword.length);
-    console.log('- First 4 chars of final hash:', hashedPassword.substring(0, 4));
-
+    // Apply pepper - use the exact same function from adminController
+    const pepperedPassword = crypto
+      .createHmac('sha256', process.env.PASSWORD_PEPPER)
+      .update(plainPassword)
+      .digest('hex');
+    
+    console.log('\n3. Pepper Application:');
+    console.log('- Plain password:', plainPassword);
+    console.log('- Peppered result:', pepperedPassword);
+    console.log('- Peppered length:', pepperedPassword.length);
+    
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(pepperedPassword, 10);
+    
+    console.log('\n4. Password Hashing:');
+    console.log('- Final hash:', hashedPassword);
+    console.log('- Hash prefix:', hashedPassword.substring(0, 7));
+    
+    // Verify immediately
+    const verifyHash = await bcrypt.compare(pepperedPassword, hashedPassword);
+    console.log('\n5. Immediate Verification:');
+    console.log('- Initial verify result:', verifyHash);
+    
     const admin = new Admin({
       username,
       password: hashedPassword,
@@ -57,12 +77,14 @@ const createAdmin = async () => {
     });
 
     await admin.save();
-
-    console.log('\n3. Admin Created Successfully:');
-    console.log('- Username:', username);
-    console.log('- Email:', email);
-    console.log('- Stored hash length:', hashedPassword.length);
-    console.log('- First 4 chars of stored hash:', hashedPassword.substring(0, 4));
+    
+    // Verify after save
+    const savedAdmin = await Admin.findOne({ username });
+    const finalVerify = await bcrypt.compare(pepperedPassword, savedAdmin.password);
+    
+    console.log('\n6. Post-Save Verification:');
+    console.log('- Stored hash:', savedAdmin.password);
+    console.log('- Final verify result:', finalVerify);
 
     rl.close();
   } catch (error) {
@@ -70,7 +92,6 @@ const createAdmin = async () => {
     rl.close();
   }
 };
-
 
 const promptInput = (question, hideInput = false) => {
   return new Promise((resolve) => {

@@ -188,22 +188,22 @@ export class AuthService {
       if (!this.TRANSIT_KEY) {
         throw new Error('TRANSIT_KEY is not configured');
       }
-      
-      // Ensure the password is a string
+
+      // Ensure password is a string
       const passwordStr = String(password);
       
-      // Log length of password pre-encryption (remove in production)
-      console.log('Password length pre-encryption:', passwordStr.length);
-      
+      // Add some basic validation
+      if (passwordStr.length < 1) {
+        throw new Error('Password cannot be empty');
+      }
+
+      // Use base64 encoding for more reliable transmission
       const encrypted = crypto.AES.encrypt(passwordStr, this.TRANSIT_KEY).toString();
-      
-      // Log encrypted password length (remove in production)
-      console.log('Encrypted password length:', encrypted.length);
       
       return encrypted;
     } catch (error) {
       console.error('Error encrypting password:', error);
-      throw new Error('Failed to secure password');
+      throw new Error('Failed to secure password for transit');
     }
   }
 
@@ -239,32 +239,69 @@ export class AuthService {
 
   static async adminLogin(credentials) {
     try {
-      if (!this.TRANSIT_KEY) {
-        throw new Error('TRANSIT_KEY is not configured');
-      }
+      console.log('\n=== Frontend Login Debug Info ===');
+      
+      const TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
+      
+      console.log('1. Environment Check:');
+      console.log('- TRANSIT_KEY available:', !!TRANSIT_KEY);
+      console.log('- TRANSIT_KEY first 4 chars:', TRANSIT_KEY?.substring(0, 4));
   
-      // Validate required fields
       if (!credentials.username || !credentials.password) {
         throw new Error('Username and password are required');
       }
   
-      // Secure password for transit
-      const securePassword = this.securePasswordForTransit(credentials.password);
+      console.log('\n2. Input Validation:');
+      console.log('- Username:', credentials.username);
+      console.log('- Password length:', credentials.password.length);
   
-      // Log the encrypted password being sent (remove in production)
-      console.log('Sending encrypted password:', securePassword);
+      // Encrypt password
+      const securePassword = (() => {
+        try {
+          const passwordStr = String(credentials.password);
+          
+          console.log('\n3. Password Encryption:');
+          console.log('- Password to encrypt:', passwordStr);
+          console.log('- Password length:', passwordStr.length);
+  
+          const encrypted = crypto.AES.encrypt(passwordStr, TRANSIT_KEY).toString();
+          
+          console.log('- Encrypted length:', encrypted.length);
+          console.log('- First 10 chars of encrypted:', encrypted.substring(0, 10));
+  
+          return encrypted;
+        } catch (error) {
+          console.error('Encryption error:', error);
+          throw new Error('Failed to secure password for transit');
+        }
+      })();
+  
+      console.log('\n4. Making API Request:');
+      console.log('- Request URL:', `${this.API_URL}/api/auth/admin-login`);
+      console.log('- Payload username:', credentials.username);
+      console.log('- Encrypted password length:', securePassword.length);
   
       const response = await this.axiosInstance.post('/api/auth/admin-login', {
         username: credentials.username,
         password: securePassword,
       });
-  
+
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      }
+
       return response.data;
     } catch (error) {
       console.error('Admin login error:', error);
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
       throw error;
     }
   }
+
+
   static async verifyOtp(username, otp) {
     try {
       const response = await this.axiosInstance.post('/api/auth/verify-otp', {

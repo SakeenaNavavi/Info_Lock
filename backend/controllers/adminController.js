@@ -18,87 +18,85 @@ class adminController {
       console.error('PASSWORD_PEPPER environment variable is not set');
       throw new Error('Server configuration error');
     }
-    
+
     console.log('Debug: Password before pepper:', password);
     console.log('Debug: Pepper starts with:', this.PEPPER.substring(0, 4));
-    
+
     const pepperedPassword = crypto
       .createHmac('sha256', this.PEPPER)
       .update(password)
       .digest('hex');
-    
+
     console.log('Debug: Peppered password starts with:', pepperedPassword.substring(0, 4));
     return pepperedPassword;
   }
 
-  static decryptTransitPassword(transitPassword) {
-    if (!this.TRANSIT_KEY) {
-      console.error('TRANSIT_KEY environment variable is not set');
-      throw new Error('Server configuration error');
-    }
-    try {
-      const bytes = CryptoJS.AES.decrypt(transitPassword, this.TRANSIT_KEY);
-      const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-      
-      if (!decrypted) {
-        throw new Error('Password decryption failed');
-      }
-      
-      console.log('Debug: Decrypted password length:', decrypted.length);
-      return decrypted;
-    } catch (error) {
-      console.error('Password decryption error:', error);
-      throw new Error('Invalid password format');
-    }
-  }
-
   static async login(req, res) {
     try {
-      const { username, password: transitPassword } = req.body;
-
-      if (!username || !transitPassword) {
-        return res.status(400).json({ message: 'Username and password are required' });
-      }
-
-      console.log('\n=== Login Attempt Debug Info ===');
+      console.log('\n=== Enhanced backend Login Debug Info ===');
       
-      // Decrypt the transit-protected password
+      const { username, password: transitPassword } = req.body;
+      
+      console.log('1. Initial Request Data:');
+      console.log('- Username:', username);
+      console.log('- Encrypted password length:', transitPassword?.length);
+  
+      // Decrypt the password
       let password;
       try {
-        password = this.decryptTransitPassword(transitPassword);
-        console.log('Debug: Successfully decrypted transit password');
+        const TRANSIT_KEY = process.env.TRANSIT_KEY;
+        console.log('\n2. Decryption Process:');
+        console.log('- TRANSIT_KEY available:', !!TRANSIT_KEY);
+        console.log('- TRANSIT_KEY first 4 chars:', TRANSIT_KEY?.substring(0, 4));
+  
+        const bytes = CryptoJS.AES.decrypt(transitPassword, TRANSIT_KEY);
+        password = bytes.toString(CryptoJS.enc.Utf8);
+  
+        console.log('- Decrypted password:', password);
+        console.log('- Decrypted password length:', password.length);
       } catch (error) {
-        console.error('Decryption error:', error);
+        console.error('Decryption failed:', error.message);
         return res.status(400).json({ message: 'Invalid password format' });
       }
-
-      // Find user
+  
+      // Find admin user
       const admin = await AdminModel.findOne({ username });
+      
+      console.log('\n3. Database Lookup:');
+      console.log('- User found:', !!admin);
+      console.log('- Stored hash:', admin?.password);
+  
       if (!admin) {
-        // Perform dummy compare to prevent timing attacks
-        await bcrypt.compare('dummy', '$2a$10$dummy');
         return res.status(401).json({ message: 'Invalid credentials' });
       }
-
-      // Apply the pepper to the password
-      const pepperedPassword = this.applyPepper(password);
+  
+      // Apply pepper to password
+      const PEPPER = process.env.PASSWORD_PEPPER;
+      console.log('\n4. Pepper Application:');
+      console.log('- PEPPER available:', !!PEPPER);
+      console.log('- PEPPER first 4 chars:', PEPPER?.substring(0, 4));
+  
+      const pepperedPassword = crypto
+        .createHmac('sha256', PEPPER)
+        .update(password)
+        .digest('hex');
+  
+      console.log('- Peppered password:', pepperedPassword);
+      console.log('- Peppered password length:', pepperedPassword.length);
+  
+      console.log('\n5. Password Comparison:');
+      console.log('- Stored hash:', admin.password);
+      console.log('- New peppered password hash:', await bcrypt.hash(pepperedPassword, 10));
       
-      console.log('Debug: Authentication steps:');
-      console.log('- Peppered password starts with:', pepperedPassword.substring(0, 4));
-      console.log('- Stored hash starts with:', admin.password.substring(0, 4));
-
-      // Verify the peppered password against stored hash
       const isValid = await bcrypt.compare(pepperedPassword, admin.password);
-      
-      console.log('Debug: Password verification result:', isValid);
-
+      console.log('- Password validation result:', isValid);
+  
       if (!isValid) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
-
-      // Generate OTP and send email
+      // Generate and send OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
       await OTP.create({
         username,
@@ -107,8 +105,10 @@ class adminController {
         expiresAt: otpExpiry
       });
 
+      console.log('6. OTP generated and stored successfully');
+
       await sendOtpEmail(admin.email, otp);
-      console.log('Debug: OTP generated and sent');
+      console.log('7. OTP email sent successfully');
 
       res.json({ message: 'OTP sent successfully' });
     } catch (error) {
@@ -116,7 +116,6 @@ class adminController {
       res.status(500).json({ message: 'Internal server error' });
     }
   }
-
   static async verifyOtp(req, res) {
     try {
       const { username, otp } = req.body;
