@@ -1,146 +1,177 @@
-const crypto = require('crypto');
-const CryptoJS = require('crypto-js');
-const bcrypt = require('bcryptjs');
-const OTP = require('../models/otpModel');
-const { sendOtpEmail } = require('../services/emailService');
-const jwt = require('jsonwebtoken');
+const AdminAuthService = require('../services/adminAuthService');
 const AdminModel = require('../models/adminModel');
+// const { createLogger } = require('../utils/logger');
 
+const logger = createLogger('AdminAuth');
 
 class adminController {
-  static PEPPER = process.env.PASSWORD_PEPPER;
-  static JWT_SECRET = process.env.JWT_SECRET;
-  static SALT_ROUNDS = 12;
-  static TRANSIT_KEY = process.env.TRANSIT_KEY;
-
-  static applyPepper(password) {
-    if (!this.PEPPER) {
-      console.error('PASSWORD_PEPPER environment variable is not set');
-      throw new Error('Server configuration error');
-    }
-
-    console.log('Debug: Password before pepper:', password);
-    console.log('Debug: Pepper starts with:', this.PEPPER.substring(0, 4));
-
-    const pepperedPassword = crypto
-      .createHmac('sha256', this.PEPPER)
-      .update(password)
-      .digest('hex');
-
-    console.log('Debug: Peppered password starts with:', pepperedPassword.substring(0, 4));
-    return pepperedPassword;
-  }
-
-  static async login(req, res) {
+  static async initiateLogin(req, res) {
     try {
-      console.log('\n=== Enhanced backend Login Debug Info ===');
-      
-      const { username, password: transitPassword } = req.body;
-      
-      console.log('1. Initial Request Data:');
-      console.log('- Username:', username);
-      console.log('- Encrypted password length:', transitPassword?.length);
-  
-      // Decrypt the password
-      let password;
-      try {
-        const TRANSIT_KEY = process.env.TRANSIT_KEY;
-        console.log('\n2. Decryption Process:');
-        console.log('- TRANSIT_KEY available:', !!TRANSIT_KEY);
-        console.log('- TRANSIT_KEY first 4 chars:', TRANSIT_KEY?.substring(0, 4));
-  
-        const bytes = CryptoJS.AES.decrypt(transitPassword, TRANSIT_KEY);
-        password = bytes.toString(CryptoJS.enc.Utf8);
-  
-        console.log('- Decrypted password:', password);
-        console.log('- Decrypted password length:', password.length);
-      } catch (error) {
-        console.error('Decryption failed:', error.message);
-        return res.status(400).json({ message: 'Invalid password format' });
+      const { username, password, recaptchaToken } = req.body;
+
+      // Validate required fields
+      if (!username || !password) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Username and password are required'
+        });
       }
-  
+
+      // Verify reCAPTCHA
+      const isRecaptchaValid = await AdminAuthService.validateRecaptcha(recaptchaToken);
+      if (!isRecaptchaValid) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid reCAPTCHA. Please try again.'
+        });
+      }
+
       // Find admin user
       const admin = await AdminModel.findOne({ username });
-      
-      console.log('\n3. Database Lookup:');
-      console.log('- User found:', !!admin);
-      console.log('- Stored hash:', admin?.password);
-  
       if (!admin) {
-        return res.status(401).json({ message: 'Invalid credentials' });
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid credentials'
+        });
       }
-  
-      // Apply pepper to password
-      const PEPPER = process.env.PASSWORD_PEPPER;
-      console.log('\n4. Pepper Application:');
-      console.log('- PEPPER available:', !!PEPPER);
-      console.log('- PEPPER first 4 chars:', PEPPER?.substring(0, 4));
-  
-      const pepperedPassword = crypto
-        .createHmac('sha256', PEPPER)
-        .update(password)
-        .digest('hex');
-  
-      console.log('- Peppered password:', pepperedPassword);
-      console.log('- Peppered password length:', pepperedPassword.length);
-  
-      console.log('\n5. Password Comparison:');
-      console.log('- Stored hash:', admin.password);
-      console.log('- New peppered password hash:', await bcrypt.hash(pepperedPassword, 10));
-      
-      const isValid = await bcrypt.compare(pepperedPassword, admin.password);
-      console.log('- Password validation result:', isValid);
-  
-      if (!isValid) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-      // Generate and send OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-      await OTP.create({
-        username,
-        otp,
-        adminId: admin._id,
-        expiresAt: otpExpiry
+      // Check if account is locked
+      if (admin.isLocked && admin.lockUntil > Date.now()) {
+        return res.status(423).json({
+          status: 'error',
+          message: 'Account is locked. Please try again later.',
+          lockTime: admin.lockUntil
+        });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, admin.password);
+      if (!isValidPassword) {
+        await AdminAuthService.incrementLoginAttempts(admin);
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid credentials'
+        });
+      }
+
+      // Generate and send OTP
+      const otp = await AdminAuthService.generateOTP(admin);
+      
+      // In production, send OTP via SMS/email
+      // await NotificationService.sendOTP(admin.phoneNumber, otp);
+
+      // Create temporary session
+      const tempToken = jwt.sign(
+        { id: admin._id, stage: 'OTP_PENDING' },
+        process.env.JWT_TEMP_SECRET,
+        { expiresIn: '5m' }
+      );
+
+      res.json({
+        status: 'success',
+        message: 'OTP sent successfully',
+        tempToken
       });
 
-      console.log('6. OTP generated and stored successfully');
-
-      await sendOtpEmail(admin.email, otp);
-      console.log('7. OTP email sent successfully');
-
-      res.json({ message: 'OTP sent successfully' });
     } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      logger.error('Login initiation failed:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'An error occurred during login'
+      });
     }
   }
-  static async verifyOtp(req, res) {
+
+  static async verifyOTP(req, res) {
     try {
-      const { username, otp } = req.body;
+      const { otp, tempToken } = req.body;
 
-      // Find OTP record
-      const otpRecord = await OTP.findOne({ username, otp });
-      if (!otpRecord) {
-        return res.status(400).json({ message: 'Invalid OTP' });
+      if (!otp || !tempToken) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'OTP and temporary token are required'
+        });
       }
 
-      // Check expiration
-      if (otpRecord.expiresAt < Date.now()) {
-        return res.status(400).json({ message: 'OTP expired' });
+      // Verify temporary token
+      const decoded = jwt.verify(tempToken, process.env.JWT_TEMP_SECRET);
+      if (decoded.stage !== 'OTP_PENDING') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid session'
+        });
       }
 
-      // OTP is valid, generate JWT token
-      const token = adminController.generateAdminToken(otpRecord.adminId); // adminId if saved in OTP
+      // Get admin
+      const admin = await AdminModel.findById(decoded.id);
+      if (!admin) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Admin not found'
+        });
+      }
 
-      // Remove OTP record after successful validation
-      await OTP.deleteOne({ _id: otpRecord._id });
+      // Verify OTP
+      const isValidOTP = await AdminAuthService.verifyOTP(admin, otp);
+      if (!isValidOTP) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Invalid OTP'
+        });
+      }
 
-      res.json({ message: 'Login successful', token });
+      // Reset login attempts
+      await AdminModel.updateOne(
+        { _id: admin._id },
+        {
+          $set: {
+            loginAttempts: { count: 0, lastAttempt: null },
+            isLocked: false,
+            lockUntil: null,
+            lastLogin: new Date()
+          }
+        }
+      );
+
+      // Generate tokens
+      const tokens = AdminAuthService.generateTokens(admin);
+
+      res.json({
+        status: 'success',
+        message: 'Login successful',
+        ...tokens,
+        admin: {
+          id: admin._id,
+          username: admin.username,
+          role: admin.role,
+          email: admin.email
+        }
+      });
+
     } catch (error) {
-      console.error('OTP verification error:', error);
-      res.status(500).json({ message: 'OTP verification failed' });
+      logger.error('OTP verification failed:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'An error occurred during OTP verification'
+      });
+    }
+  }
+
+  static async logout(req, res) {
+    try {
+      // In a production environment, you might want to blacklist the token
+      // await TokenBlacklist.add(req.token);
+
+      res.json({
+        status: 'success',
+        message: 'Logged out successfully'
+      });
+    } catch (error) {
+      logger.error('Logout failed:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'An error occurred during logout'
+      });
     }
   }
 }
