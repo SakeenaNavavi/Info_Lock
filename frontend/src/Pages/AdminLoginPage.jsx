@@ -41,57 +41,28 @@ const AdminLoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setLoginError('');
+    if (!captchaValue) {
+      alert("Please complete the reCAPTCHA");
+      return;
+    }
+    if (!validateForm()) return;
 
+    setIsLoading(true);
     try {
       if (!otpSent) {
-        // Make sure this URL matches your backend URL
-        const response = await fetch('http://localhost:5000/api/auth/admin-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: formData.username,
-            password: formData.password,
-            captchaToken: captchaValue
-          })
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Login failed');
-        }
-
-        if (data.requiresOTP) {
-          setOtpSent(true);
-        }
+        // Initial login request with username/password
+        const securePassword = formData.password;
+        const response = await AuthService.adminLogin({ username: formData.username, password: securePassword });
+        alert("OTP sent to your email");
+        setOtpSent(true); // Move to OTP step
       } else {
-        const response = await fetch('http://localhost:5000/api/auth/admin-login/verify-otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: formData.username,
-            otp: formData.otp
-          })
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'OTP verification failed');
-        }
-
-        if (data.token) {
-          localStorage.setItem('adminToken', data.token);
-          navigate('/admin/dashboard');
-        }
+        // OTP verification step
+        const response = await AuthService.verifyOtp(formData.username, formData.otp);
+        alert("Login successful");
+        navigate('/admin-dashboard');
       }
     } catch (error) {
-      console.error('Authentication error:', error);
-      setLoginError(error.message || 'Authentication failed. Please try again.');
+      setLoginError(error.message || "Login failed");
     } finally {
       setIsLoading(false);
     }

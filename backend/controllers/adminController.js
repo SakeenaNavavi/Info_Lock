@@ -1,179 +1,79 @@
-const AdminAuthService = require('../services/adminAuthService');
+const crypto = require('crypto');
+const CryptoJS = require('crypto-js');
+const bcrypt = require('bcryptjs');
+const OTP = require('../models/otpModel');
+const jwt = require('jsonwebtoken');
 const AdminModel = require('../models/adminModel');
-// const { createLogger } = require('../utils/logger');
 
-const logger = createLogger('AdminAuth');
 
 class adminController {
-  static async initiateLogin(req, res) {
-    try {
-      const { username, password, recaptchaToken } = req.body;
+  static PEPPER = process.env.PASSWORD_PEPPER;
+  static JWT_SECRET = process.env.JWT_SECRET;
+  static TRANSIT_KEY = process.env.TRANSIT_KEY;
 
-      // Validate required fields
-      if (!username || !password) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Username and password are required'
-        });
-      }
+  static applyPepper(password) {
+    return crypto
+        .createHmac('sha256', adminController.PEPPER)
+        .update(password)
+        .digest('hex');
+}
 
-      // Verify reCAPTCHA
-      const isRecaptchaValid = await AdminAuthService.validateRecaptcha(recaptchaToken);
-      if (!isRecaptchaValid) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Invalid reCAPTCHA. Please try again.'
-        });
-      }
+static decryptTransitPassword(transitPassword) {
+  const bytes = CryptoJS.AES.decrypt(transitPassword, adminController.TRANSIT_KEY);
+  return bytes.toString(CryptoJS.enc.Utf8);
+}
 
-      // Find admin user
-      const admin = await AdminModel.findOne({ username });
-      if (!admin) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid credentials'
-        });
-      }
-
-      // Check if account is locked
-      if (admin.isLocked && admin.lockUntil > Date.now()) {
-        return res.status(423).json({
-          status: 'error',
-          message: 'Account is locked. Please try again later.',
-          lockTime: admin.lockUntil
-        });
-      }
-
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, admin.password);
-      if (!isValidPassword) {
-        await AdminAuthService.incrementLoginAttempts(admin);
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid credentials'
-        });
-      }
-
-      // Generate and send OTP
-      const otp = await AdminAuthService.generateOTP(admin);
-      
-      // In production, send OTP via SMS/email
-      // await NotificationService.sendOTP(admin.phoneNumber, otp);
-
-      // Create temporary session
-      const tempToken = jwt.sign(
-        { id: admin._id, stage: 'OTP_PENDING' },
-        process.env.JWT_TEMP_SECRET,
-        { expiresIn: '5m' }
-      );
-
-      res.json({
-        status: 'success',
-        message: 'OTP sent successfully',
-        tempToken
-      });
-
-    } catch (error) {
-      logger.error('Login initiation failed:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'An error occurred during login'
-      });
-    }
-  }
-
-  static async verifyOTP(req, res) {
-    try {
-      const { otp, tempToken } = req.body;
-
-      if (!otp || !tempToken) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'OTP and temporary token are required'
-        });
-      }
-
-      // Verify temporary token
-      const decoded = jwt.verify(tempToken, process.env.JWT_TEMP_SECRET);
-      if (decoded.stage !== 'OTP_PENDING') {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Invalid session'
-        });
-      }
-
-      // Get admin
-      const admin = await AdminModel.findById(decoded.id);
-      if (!admin) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Admin not found'
-        });
-      }
-
-      // Verify OTP
-      const isValidOTP = await AdminAuthService.verifyOTP(admin, otp);
-      if (!isValidOTP) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid OTP'
-        });
-      }
-
-      // Reset login attempts
-      await AdminModel.updateOne(
-        { _id: admin._id },
-        {
-          $set: {
-            loginAttempts: { count: 0, lastAttempt: null },
-            isLocked: false,
-            lockUntil: null,
-            lastLogin: new Date()
-          }
-        }
-      );
-
-      // Generate tokens
-      const tokens = AdminAuthService.generateTokens(admin);
-
-      res.json({
-        status: 'success',
-        message: 'Login successful',
-        ...tokens,
-        admin: {
+static generateToken(admin) {
+  return jwt.sign(
+      {
           id: admin._id,
-          username: admin.username,
-          role: admin.role,
           email: admin.email
-        }
-      });
+      },
+      adminController.JWT_SECRET,
+      { expiresIn: '2h' }
+  );
+}
 
-    } catch (error) {
-      logger.error('OTP verification failed:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'An error occurred during OTP verification'
-      });
-    }
-  }
-
-  static async logout(req, res) {
+  static async login(req, res) {
     try {
-      // In a production environment, you might want to blacklist the token
-      // await TokenBlacklist.add(req.token);
+        const { username, password: transitPassword } = req.body;
 
-      res.json({
-        status: 'success',
-        message: 'Logged out successfully'
-      });
+        // Decrypt the transit-protected password
+        const password = adminController.decryptTransitPassword(transitPassword);
+
+        // Find user
+        const admin = await AdminModel.findOne({ username });
+        if (!admin) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Combine password with pepper
+        const pepperedPassword = adminController.applyPepper(password);
+
+        // Verify password using stored salt
+        const isValid = await bcrypt.compare(pepperedPassword, admin.password);
+        if (!isValid) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Generate JWT token
+        const token = adminController.generateToken(admin);
+
+        res.json({
+            message: 'Login successful',
+            token,
+            admin: {
+                id: admin._id,
+                email: admin.email,
+                name: admin.name
+            }
+        });
     } catch (error) {
-      logger.error('Logout failed:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'An error occurred during logout'
-      });
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Login failed', error: error.message });
     }
-  }
+}
+  
 }
 
 module.exports = adminController;
