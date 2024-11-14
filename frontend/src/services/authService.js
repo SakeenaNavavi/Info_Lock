@@ -301,19 +301,26 @@ export class AuthService {
     }
   }
 
-  static async verifyOtp(username, otp) {
-    try {
-      const response = await this.axiosInstance.post('/api/auth/verify-otp', {
-        username,
-        otp,
-      });
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-      }
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || error.message;
+  static async verifyOTP(username, otp) {
+    const verifyResponse = await fetch('/api/admin/verify-otp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, otp })
+    });
+
+    const verifyData = await verifyResponse.json();
+    
+    if (!verifyResponse.ok) {
+      throw new Error(verifyData.message);
     }
+
+    // Store the token in localStorage
+    localStorage.setItem('token', verifyData.token);
+    localStorage.setItem('user', JSON.stringify(verifyData.admin));
+
+    return verifyData;
   }
   
 }

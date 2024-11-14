@@ -39,31 +39,22 @@ static generateOTP() {
 }
 
 static async sendOTPEmail(email, otp) {
-    // Create a test account using Ethereal
-    const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-    const mailOptions = {
-        from: process.env.SMTP_FROM,
-        to: email,
-        subject: 'Login OTP Verification',
-        html: `
-            <h1>OTP Verification</h1>
-            <p>Your OTP for login verification is: <strong>${otp}</strong></p>
-            <p>This OTP will expire in 5 minutes.</p>
-            <p>If you didn't request this OTP, please ignore this email.</p>
-        `
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: 'Login OTP Verification',
+      html: `
+        <h1>OTP Verification</h1>
+        <p>Your OTP for login verification is: <strong>${otp}</strong></p>
+        <p>This OTP will expire in 5 minutes.</p>
+        <p>If you didn't request this OTP, please ignore this email.</p>
+      `
     };
 
-    await transporter.sendMail(mailOptions);
-}
+    await sgMail.send(msg);
+  }
 
   static async login(req, res) {
     try {
@@ -87,7 +78,50 @@ static async sendOTPEmail(email, otp) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Generate JWT token
+        const otp = adminController.generateOTP();
+        await OTP.create({
+            userId: admin._id,
+            otp: await bcrypt.hash(otp, 10),
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes expiry
+        });
+
+        // Send OTP email
+        await adminController.sendOTPEmail(admin.email, otp);
+
+        res.json({
+            message: 'OTP sent to your email',
+            userId: admin._id
+        });
+    } catch (error) {
+        console.error('Login initiation error:', error);
+        res.status(500).json({ message: 'Login failed', error: error.message });
+    }
+}
+static async verifyOTP(req, res) {
+    try {
+        const { username, otp } = req.body;
+
+        // Find the latest OTP for the user
+        const otpRecord = await OTP.findOne({
+            username,
+            expiresAt: { $gt: new Date() }
+        }).sort({ createdAt: -1 });
+
+        if (!otpRecord) {
+            return res.status(401).json({ message: 'OTP expired or invalid' });
+        }
+
+        // Verify OTP
+        const isValidOTP = await bcrypt.compare(otp, otpRecord.otp);
+        if (!isValidOTP) {
+            return res.status(401).json({ message: 'Invalid OTP' });
+        }
+
+        // Delete used OTP
+        await OTP.deleteOne({ _id: otpRecord._id });
+
+        // Find admin and generate token
+        const admin = await AdminModel.findOne({username});
         const token = adminController.generateToken(admin);
 
         res.json({
@@ -96,14 +130,14 @@ static async sendOTPEmail(email, otp) {
             admin: {
                 id: admin._id,
                 email: admin.email,
-                name: admin.name
+                name: admin.username
             }
         });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Login failed', error: error.message });
+        console.error('OTP verification error:', error);
+        res.status(500).json({ message: 'Verification failed', error: error.message });
     }
-}
+  }
   
 }
 
