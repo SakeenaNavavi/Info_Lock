@@ -301,7 +301,6 @@ export class AuthService {
     }
   }
 
-
   static async verifyOtp(username, otp) {
     try {
       const response = await this.axiosInstance.post('/api/auth/verify-otp', {

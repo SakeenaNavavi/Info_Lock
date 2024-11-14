@@ -290,41 +290,6 @@ class AuthController {
         );
       };
       
-      static async adminLogin(req, res) {
-        const { username, password, securityCode } = req.body;
-        console.log("Received login request:", req.body);
-      
-        const admin = await AdminModel.findOne({ username });
-        if (!admin) {
-          console.log("Admin not found");
-          return res.status(401).json({ message: 'Invalid credentials' });
-        }
-      
-        // Verify password
-        const isPasswordValid = await admin.comparePassword(password);
-        console.log("Password validation:", isPasswordValid);
-        if (!isPasswordValid) {
-          return res.status(401).json({ message: 'Invalid credentials' });
-        }
-      
-        // Verify 2FA token
-        const isValidToken = speakeasy.totp.verify({
-          secret: admin.twoFactorSecret,
-          encoding: 'base32',
-          token: securityCode,
-          window: 1,
-        });
-        console.log("2FA validation:", isValidToken);
-      
-        if (!isValidToken) {
-          return res.status(401).json({ message: 'Invalid security code' });
-        }
-      
-        // Generate JWT token on successful login
-        const token = AuthController.generateAdminToken(admin._id);
-        return res.json({ message: 'Login successful', token });
-      }
-      
 }
 
 // Export the controller
