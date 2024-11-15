@@ -57,7 +57,7 @@ const AdminLoginPage = () => {
         setOtpSent(true); // Move to OTP step
       } else {
         // OTP verification step
-        const response = await AuthService.verifyOtp(formData.username, formData.otp);
+        const response = await AuthService.verifyOTP(formData.username, formData.otp);
         alert("Login successful");
         navigate('/admin-dashboard');
       }

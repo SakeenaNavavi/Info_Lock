@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const OTP = require('../models/otpModel');
 const jwt = require('jsonwebtoken');
 const AdminModel = require('../models/adminModel');
+const sgMail = require('@sendgrid/mail');
 
 
 class adminController {

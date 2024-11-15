@@ -302,7 +302,7 @@ export class AuthService {
   }
 
   static async verifyOTP(username, otp) {
-    const verifyResponse = await fetch('/api/admin/verify-otp', {
+    const verifyResponse = await fetch('/api/auth/verify-otp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
