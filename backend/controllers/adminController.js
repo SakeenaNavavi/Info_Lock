@@ -110,7 +110,6 @@ class adminController {
   static async verifyOTP(req, res) {
     try {
         const { username, otp } = req.body;
-        console.log('Verifying OTP for admin:', username); 
 
         // Find the latest OTP for the admin user
         const otpRecord = await OTP.findOne({

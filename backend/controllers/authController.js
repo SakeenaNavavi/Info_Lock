@@ -1,6 +1,6 @@
 const UserModel = require("../models/userModel");
+const OTP = require('../models/otpModel');
 const sgMail = require("@sendgrid/mail");
-const speakeasy = require("speakeasy");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
@@ -89,6 +89,10 @@ class AuthController {
     }
   }
 
+  static generateOTP() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
   static async login(req, res) {
     try {
       const { email, password: transitPassword } = req.body;
@@ -120,28 +124,27 @@ class AuthController {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      // Generate OTP
-      const secret = speakeasy.generateSecret();
-      const otp = speakeasy.totp({
-        secret: secret.base32,
-        encoding: "base32",
-        step: 300, // 5 minutes
-      });
+      const otp = AuthController.generateOTP();
 
-      // Store OTP secret temporarily (you might want to use Redis for this)
-      user.tempOTPSecret = secret.base32;
-      user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-      await user.save();
+      await OTP.create({
+        userId: user._id,
+        userModel: 'User',
+        username: user.email,  
+        otp: await bcrypt.hash(otp.toString(), 10),  
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+    });
 
-      // Send OTP via email
-      await AuthController.sendOTPEmail(user.email, otp);
+    console.log('OTP created for user:', user.name);
 
-      res.json({
-        message:
-          "Initial authentication successful. Please check your email for OTP.",
-        requiresOTP: true,
-        email: user.email,
-      });
+    await AuthController.sendOTPEmail(user.email, otp);
+
+    res.json({
+        message: 'OTP sent to your email',
+        userId: user._id,
+        username: user.email,
+        userType: 'User'  // Include userType in response
+    });
+
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed", error: error.message });
@@ -294,9 +297,10 @@ class AuthController {
       {
         id: user._id,
         email: user.email,
+        userType: 'User'
       },
       AuthController.JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: "2h" }
     );
   }
 
@@ -304,48 +308,42 @@ class AuthController {
     try {
       const { email, otp } = req.body;
 
-      // Find user
-      const user = await UserModel.findOne({
-        email,
-        otpExpiry: { $gt: new Date() }, // Check if OTP hasn't expired
-      });
+      const otpRecord = await OTP.findOne({
+        username:email,
+        userModel: 'User',  // Add userModel filter
+        expiresAt: { $gt: new Date() }
+    }).sort({ createdAt: -1 });
 
-      if (!user || !user.tempOTPSecret) {
-        return res
-          .status(401)
-          .json({ message: "Invalid or expired OTP session" });
-      }
+    console.log('Found OTP record:', otpRecord ? 'Yes' : 'No'); 
 
-      // Verify OTP
-      const isValidOTP = speakeasy.totp.verify({
-        secret: user.tempOTPSecret,
-        encoding: "base32",
-        token: otp,
-        step: 300, // 5 minutes
-        window: 1, // Allow 1 step before and after for time drift
-      });
+        if (!otpRecord) {
+            return res.status(401).json({ message: 'OTP expired or invalid' });
+        }
+        const isValidOTP = await bcrypt.compare(otp.toString(), otpRecord.otp);
+        console.log('OTP validation result:', isValidOTP); 
+        if (!isValidOTP) {
+            return res.status(401).json({ message: 'Invalid OTP' });
+        }
+        await OTP.deleteOne({ _id: otpRecord._id });
 
-      if (!isValidOTP) {
-        return res.status(401).json({ message: "Invalid OTP" });
-      }
-
-      // Clear OTP data
-      user.tempOTPSecret = undefined;
-      user.otpExpiry = undefined;
-      await user.save();
+        const user = await UserModel.findOne({ email });
+        if (!user) {
+            return res.status(401).json({ message: 'User not found' });
+        }
 
       // Generate JWT token
       const token = AuthController.generateToken(user);
 
       res.json({
-        message: "Authentication successful",
+        message: 'Login successful',
         token,
         user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-        },
-      });
+            id: user._id,
+            email: user.email,
+            name: user.name,
+            userType: 'User'  // Include userType in response
+        }
+    });
     } catch (error) {
       console.error("OTP verification error:", error);
       res
@@ -360,10 +358,10 @@ class AuthController {
     const msg = {
       to: email,
       from: process.env.SENDGRID_FROM_EMAIL,
-      subject: "Admin Login OTP Verification", // Updated to specify Admin login
+      subject: "User Login OTP Verification", // Updated to specify Admin login
       html: `
-            <h1>Admin OTP Verification</h1>
-            <p>Your OTP for admin login verification is: <strong>${otp}</strong></p>
+            <h1>User OTP Verification</h1>
+            <p>Your OTP for login verification is: <strong>${otp}</strong></p>
             <p>This OTP will expire in 5 minutes.</p>
             <p>If you didn't request this OTP, please ignore this email.</p>
           `,
