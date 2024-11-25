@@ -302,25 +302,34 @@ export class AuthService {
   }
 
   static async verifyOTP(username, otp) {
-    const verifyResponse = await fetch('/api/auth/verify-otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, otp })
-    });
-
-    const verifyData = await verifyResponse.json();
+    console.log('Sending OTP verification request:', { username, otp });
     
-    if (!verifyResponse.ok) {
-      throw new Error(verifyData.message);
+    try {
+        const verifyResponse = await fetch('http://localhost:5000/api/auth/verify-otp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, otp })
+        });
+
+        console.log('Response status:', verifyResponse.status);
+        
+        const verifyData = await verifyResponse.json();
+        console.log('Response data:', verifyData);
+        
+        if (!verifyResponse.ok) {
+            throw new Error(verifyData.message || 'OTP verification failed');
+        }
+
+        localStorage.setItem('token', verifyData.token);
+        localStorage.setItem('user', JSON.stringify(verifyData.admin));
+
+        return verifyData;
+    } catch (error) {
+        console.error('OTP verification error:', error);
+        throw error;
     }
-
-    // Store the token in localStorage
-    localStorage.setItem('token', verifyData.token);
-    localStorage.setItem('user', JSON.stringify(verifyData.admin));
-
-    return verifyData;
-  }
+}
   
 }

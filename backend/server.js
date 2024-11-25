@@ -61,7 +61,7 @@ app.use((req, res) => {
 // MongoDB connection with enhanced error handling
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/info_lock', {
+        await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true
         });

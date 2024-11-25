@@ -82,25 +82,31 @@ static async sendOTPEmail(email, otp) {
         const otp = adminController.generateOTP();
         await OTP.create({
             userId: admin._id,
-            otp: await bcrypt.hash(otp, 10),
-            expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes expiry
+            username: admin.username,  // Add username here
+            otp: await bcrypt.hash(otp.toString(), 10),  // Convert OTP to string
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000)
         });
+
+        console.log('OTP created for user:', admin.username); // Add logging
 
         // Send OTP email
         await adminController.sendOTPEmail(admin.email, otp);
 
         res.json({
             message: 'OTP sent to your email',
-            userId: admin._id
+            userId: admin._id,
+            username: admin.username  // Return username for frontend
         });
     } catch (error) {
         console.error('Login initiation error:', error);
         res.status(500).json({ message: 'Login failed', error: error.message });
     }
 }
+
 static async verifyOTP(req, res) {
     try {
         const { username, otp } = req.body;
+        console.log('Verifying OTP for username:', username); // Add logging
 
         // Find the latest OTP for the user
         const otpRecord = await OTP.findOne({
@@ -108,12 +114,16 @@ static async verifyOTP(req, res) {
             expiresAt: { $gt: new Date() }
         }).sort({ createdAt: -1 });
 
+        console.log('Found OTP record:', otpRecord ? 'Yes' : 'No'); // Add logging
+
         if (!otpRecord) {
             return res.status(401).json({ message: 'OTP expired or invalid' });
         }
 
         // Verify OTP
-        const isValidOTP = await bcrypt.compare(otp, otpRecord.otp);
+        const isValidOTP = await bcrypt.compare(otp.toString(), otpRecord.otp);
+        console.log('OTP validation result:', isValidOTP); // Add logging
+
         if (!isValidOTP) {
             return res.status(401).json({ message: 'Invalid OTP' });
         }
@@ -122,7 +132,11 @@ static async verifyOTP(req, res) {
         await OTP.deleteOne({ _id: otpRecord._id });
 
         // Find admin and generate token
-        const admin = await AdminModel.findOne({username});
+        const admin = await AdminModel.findOne({ username });
+        if (!admin) {
+            return res.status(401).json({ message: 'Admin not found' });
+        }
+
         const token = adminController.generateToken(admin);
 
         res.json({
@@ -138,7 +152,7 @@ static async verifyOTP(req, res) {
         console.error('OTP verification error:', error);
         res.status(500).json({ message: 'Verification failed', error: error.message });
     }
-  }
+}
   
 }
 

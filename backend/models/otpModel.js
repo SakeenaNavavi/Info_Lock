@@ -1,10 +1,13 @@
 const mongoose = require('mongoose');
-
 const otpSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
         ref: 'Admin'
+    },
+    username: {  // Add this field
+        type: String,
+        required: true
     },
     otp: {
         type: String,
