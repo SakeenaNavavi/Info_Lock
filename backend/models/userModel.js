@@ -34,6 +34,14 @@ const userSchema = new Schema({
   { type: Boolean, default: false 
     
   },
+  tempOTPSecret: {
+    type: String,
+    select: false // Don't include in normal queries
+},
+otpExpiry: {
+    type: Date,
+    select: false
+},
   verificationToken: String,
   tokenExpiry: Date
 });

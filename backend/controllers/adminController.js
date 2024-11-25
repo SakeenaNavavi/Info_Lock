@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const AdminModel = require('../models/adminModel');
 const sgMail = require('@sendgrid/mail');
 
-
 class adminController {
   static PEPPER = process.env.PASSWORD_PEPPER;
   static JWT_SECRET = process.env.JWT_SECRET;
@@ -17,38 +16,39 @@ class adminController {
         .createHmac('sha256', adminController.PEPPER)
         .update(password)
         .digest('hex');
-}
+  }
 
-static decryptTransitPassword(transitPassword) {
-  const bytes = CryptoJS.AES.decrypt(transitPassword, adminController.TRANSIT_KEY);
-  return bytes.toString(CryptoJS.enc.Utf8);
-}
+  static decryptTransitPassword(transitPassword) {
+    const bytes = CryptoJS.AES.decrypt(transitPassword, adminController.TRANSIT_KEY);
+    return bytes.toString(CryptoJS.enc.Utf8);
+  }
 
-static generateToken(admin) {
-  return jwt.sign(
-      {
-          id: admin._id,
-          email: admin.email
-      },
-      adminController.JWT_SECRET,
-      { expiresIn: '2h' }
-  );
-}
+  static generateToken(admin) {
+    return jwt.sign(
+        {
+            id: admin._id,
+            email: admin.email,
+            userType: 'Admin' // Add userType to token
+        },
+        adminController.JWT_SECRET,
+        { expiresIn: '2h' }
+    );
+  }
 
-static generateOTP() {
+  static generateOTP() {
     return Math.floor(100000 + Math.random() * 900000).toString();
-}
+  }
 
-static async sendOTPEmail(email, otp) {
+  static async sendOTPEmail(email, otp) {
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     const msg = {
       to: email,
       from: process.env.SENDGRID_FROM_EMAIL,
-      subject: 'Login OTP Verification',
+      subject: 'Admin Login OTP Verification',  // Updated to specify Admin login
       html: `
-        <h1>OTP Verification</h1>
-        <p>Your OTP for login verification is: <strong>${otp}</strong></p>
+        <h1>Admin OTP Verification</h1>
+        <p>Your OTP for admin login verification is: <strong>${otp}</strong></p>
         <p>This OTP will expire in 5 minutes.</p>
         <p>If you didn't request this OTP, please ignore this email.</p>
       `
@@ -64,7 +64,7 @@ static async sendOTPEmail(email, otp) {
         // Decrypt the transit-protected password
         const password = adminController.decryptTransitPassword(transitPassword);
 
-        // Find user
+        // Find admin
         const admin = await AdminModel.findOne({ username });
         if (!admin) {
             return res.status(401).json({ message: 'Invalid credentials' });
@@ -80,14 +80,17 @@ static async sendOTPEmail(email, otp) {
         }
 
         const otp = adminController.generateOTP();
+        
+        // Create OTP with userModel field
         await OTP.create({
             userId: admin._id,
-            username: admin.username,  // Add username here
-            otp: await bcrypt.hash(otp.toString(), 10),  // Convert OTP to string
+            userModel: 'Admin',  // Specify that this is for Admin model
+            username: admin.username,  
+            otp: await bcrypt.hash(otp.toString(), 10),  
             expiresAt: new Date(Date.now() + 5 * 60 * 1000)
         });
 
-        console.log('OTP created for user:', admin.username); // Add logging
+        console.log('OTP created for admin:', admin.username); 
 
         // Send OTP email
         await adminController.sendOTPEmail(admin.email, otp);
@@ -95,26 +98,28 @@ static async sendOTPEmail(email, otp) {
         res.json({
             message: 'OTP sent to your email',
             userId: admin._id,
-            username: admin.username  // Return username for frontend
+            username: admin.username,
+            userType: 'Admin'  // Include userType in response
         });
     } catch (error) {
         console.error('Login initiation error:', error);
         res.status(500).json({ message: 'Login failed', error: error.message });
     }
-}
+  }
 
-static async verifyOTP(req, res) {
+  static async verifyOTP(req, res) {
     try {
         const { username, otp } = req.body;
-        console.log('Verifying OTP for username:', username); // Add logging
+        console.log('Verifying OTP for admin:', username); 
 
-        // Find the latest OTP for the user
+        // Find the latest OTP for the admin user
         const otpRecord = await OTP.findOne({
             username,
+            userModel: 'Admin',  // Add userModel filter
             expiresAt: { $gt: new Date() }
         }).sort({ createdAt: -1 });
 
-        console.log('Found OTP record:', otpRecord ? 'Yes' : 'No'); // Add logging
+        console.log('Found OTP record:', otpRecord ? 'Yes' : 'No'); 
 
         if (!otpRecord) {
             return res.status(401).json({ message: 'OTP expired or invalid' });
@@ -122,8 +127,7 @@ static async verifyOTP(req, res) {
 
         // Verify OTP
         const isValidOTP = await bcrypt.compare(otp.toString(), otpRecord.otp);
-        console.log('OTP validation result:', isValidOTP); // Add logging
-
+        console.log('OTP validation result:', isValidOTP); 
         if (!isValidOTP) {
             return res.status(401).json({ message: 'Invalid OTP' });
         }
@@ -145,15 +149,15 @@ static async verifyOTP(req, res) {
             admin: {
                 id: admin._id,
                 email: admin.email,
-                name: admin.username
+                name: admin.username,
+                userType: 'Admin'  // Include userType in response
             }
         });
     } catch (error) {
         console.error('OTP verification error:', error);
         res.status(500).json({ message: 'Verification failed', error: error.message });
     }
-}
-  
+  }
 }
 
 module.exports = adminController;

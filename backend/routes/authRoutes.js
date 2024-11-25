@@ -12,4 +12,5 @@ router.get('/verify-email/:token', AuthController.verifyEmail);
 router.post('/resend-verification', AuthController.resendVerification);
 router.post('/admin-login',adminController.login);
 router.post('/verify-otp', adminController.verifyOTP);
+router.post('/verify-user-otp', AuthController.verifyOTP);
 module.exports = router;

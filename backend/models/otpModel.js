@@ -1,11 +1,18 @@
 const mongoose = require('mongoose');
+
 const otpSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        ref: 'Admin'
+        // Remove specific ref to allow multiple user types
+        refPath: 'userModel'  // Dynamic reference
     },
-    username: {  // Add this field
+    userModel: {
+        type: String,
+        required: true,
+        enum: ['User', 'Admin']  // Restrict to these two models
+    },
+    username: {  
         type: String,
         required: true
     },

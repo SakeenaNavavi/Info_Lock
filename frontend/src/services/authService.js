@@ -18,7 +18,6 @@ export class AuthService {
       },
       withCredentials: true // Important for CORS if using cookies
     });
-    console.log(instance.defaults.baseURL);
     // Request interceptor
     instance.interceptors.request.use(
       config => {
@@ -68,7 +67,6 @@ export class AuthService {
   static async register(userData) {
     try {
       if (!this.TRANSIT_KEY) {
-        console.error('TRANSIT_KEY is not set in environment variables');
         throw new Error('Configuration error: TRANSIT_KEY is missing');
       }
 
@@ -239,35 +237,21 @@ export class AuthService {
 
   static async adminLogin(credentials) {
     try {
-      console.log('\n=== Frontend Login Debug Info ===');
       
       const TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
-      
-      console.log('1. Environment Check:');
-      console.log('- TRANSIT_KEY available:', !!TRANSIT_KEY);
-      console.log('- TRANSIT_KEY first 4 chars:', TRANSIT_KEY?.substring(0, 4));
   
       if (!credentials.username || !credentials.password) {
         throw new Error('Username and password are required');
       }
-  
-      console.log('\n2. Input Validation:');
-      console.log('- Username:', credentials.username);
-      console.log('- Password length:', credentials.password.length);
-  
+
       // Encrypt password
       const securePassword = (() => {
         try {
           const passwordStr = String(credentials.password);
           
-          console.log('\n3. Password Encryption:');
-          console.log('- Password to encrypt:', passwordStr);
-          console.log('- Password length:', passwordStr.length);
   
           const encrypted = crypto.AES.encrypt(passwordStr, TRANSIT_KEY).toString();
-          
-          console.log('- Encrypted length:', encrypted.length);
-          console.log('- First 10 chars of encrypted:', encrypted.substring(0, 10));
+
   
           return encrypted;
         } catch (error) {
@@ -276,10 +260,6 @@ export class AuthService {
         }
       })();
   
-      console.log('\n4. Making API Request:');
-      console.log('- Request URL:', `${this.API_URL}/api/auth/admin-login`);
-      console.log('- Payload username:', credentials.username);
-      console.log('- Encrypted password length:', securePassword.length);
   
       const response = await this.axiosInstance.post('/api/auth/admin-login', {
         username: credentials.username,
@@ -302,7 +282,6 @@ export class AuthService {
   }
 
   static async verifyOTP(username, otp) {
-    console.log('Sending OTP verification request:', { username, otp });
     
     try {
         const verifyResponse = await fetch('http://localhost:5000/api/auth/verify-otp', {
@@ -313,10 +292,8 @@ export class AuthService {
             body: JSON.stringify({ username, otp })
         });
 
-        console.log('Response status:', verifyResponse.status);
         
         const verifyData = await verifyResponse.json();
-        console.log('Response data:', verifyData);
         
         if (!verifyResponse.ok) {
             throw new Error(verifyData.message || 'OTP verification failed');
@@ -330,6 +307,34 @@ export class AuthService {
         console.error('OTP verification error:', error);
         throw error;
     }
+}
+
+static async verifyUserOTP(email, otp) {
+    
+  try {
+      const verifyResponse = await fetch('http://localhost:5000/api/auth/verify-user-otp', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, otp })
+      });
+
+      
+      const verifyData = await verifyResponse.json();
+      
+      if (!verifyResponse.ok) {
+          throw new Error(verifyData.message || 'OTP verification failed');
+      }
+
+      localStorage.setItem('token', verifyData.token);
+      localStorage.setItem('user', JSON.stringify(verifyData.user));
+
+      return verifyData;
+  } catch (error) {
+      console.error('OTP verification error:', error);
+      throw error;
+  }
 }
   
 }
