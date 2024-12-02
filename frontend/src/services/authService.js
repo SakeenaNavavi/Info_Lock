@@ -6,7 +6,7 @@ export class AuthService {
   static TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
 
   // Base API URL - use environment variable if available
-  static API_URL = `${process.env.REACT_APP_API_URL}` || 'http://localhost:5000';
+  static API_URL = `${process.env.REACT_APP_API_URL}`;
 
   // Axios instance with default config
   static axiosInstance = (() => {
@@ -284,7 +284,7 @@ export class AuthService {
   static async verifyOTP(username, otp) {
     
     try {
-        const verifyResponse = await fetch('http://localhost:5000/api/auth/verify-otp', {
+        const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -312,7 +312,7 @@ export class AuthService {
 static async verifyUserOTP(email, otp) {
     
   try {
-      const verifyResponse = await fetch('http://localhost:5000/api/auth/verify-user-otp', {
+      const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify-user-otp`, {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json'
