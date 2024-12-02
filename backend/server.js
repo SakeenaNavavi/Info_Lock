@@ -1,5 +1,6 @@
 // server.js
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const mongoose = require('mongoose');
 require('dotenv').config();
@@ -57,6 +58,15 @@ app.use((req, res) => {
     console.log(`404 - Route not found: ${req.method} ${req.path}`);
     res.status(404).json({ message: 'Route not found' });
 });
+
+// Serve static files from the "build" folder
+app.use(express.static(path.join(__dirname, 'build')));
+
+// Handle React routing: return all requests to React's index.html
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+  });
+  
 
 // MongoDB connection with enhanced error handling
 const connectDB = async () => {

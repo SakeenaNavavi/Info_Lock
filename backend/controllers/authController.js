@@ -1,5 +1,5 @@
 const UserModel = require("../models/userModel");
-const OTP = require('../models/otpModel');
+const userOTP = require("../models/userOtpModel");
 const sgMail = require("@sendgrid/mail");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
@@ -96,16 +96,16 @@ class AuthController {
   static async login(req, res) {
     try {
       const { email, password: transitPassword } = req.body;
-
+  
       // Decrypt the transit-protected password
       const password = AuthController.decryptTransitPassword(transitPassword);
-
+  
       // Find user
       const user = await UserModel.findOne({ email });
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-
+  
       // Check if user is verified
       if (!user.isVerified) {
         return res.status(403).json({
@@ -114,37 +114,54 @@ class AuthController {
           email: user.email,
         });
       }
-
+  
       // Combine password with pepper
       const pepperedPassword = AuthController.applyPepper(password);
-
+  
       // Verify password using stored salt
       const isValid = await bcrypt.compare(pepperedPassword, user.password);
       if (!isValid) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
-
+  
       const otp = AuthController.generateOTP();
-
-      await OTP.create({
+  
+      // Extensive logging for OTP creation
+      console.log('OTP Creation Debug:');
+      console.log('User ID:', user._id);
+      console.log('User Email:', user.email);
+      console.log('Generated OTP:', otp);
+      console.log('Current Timestamp:', new Date());
+      console.log('Expiry Timestamp:', new Date(Date.now() + 5 * 60 * 1000));
+  
+      try {
+        const otpRecord = await userOTP.create({
+          userId: user._id,
+          email: user.email,
+          otp: await bcrypt.hash(otp.toString(), 10),
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        });
+  
+        console.log('OTP Record Created Successfully:');
+        console.log('OTP Record ID:', otpRecord._id);
+        console.log('OTP Record Details:', otpRecord);
+      } catch (otpCreationError) {
+        console.error('Error Creating OTP Record:', otpCreationError);
+        return res.status(500).json({ 
+          message: "Failed to create OTP record", 
+          error: otpCreationError.message 
+        });
+      }
+  
+      console.log("OTP created for user:", user.name);
+  
+      await AuthController.sendOTPEmail(user.email, otp);
+  
+      res.json({
+        message: "OTP sent to your email",
         userId: user._id,
-        userModel: 'User',
-        username: user.email,  
-        otp: await bcrypt.hash(otp.toString(), 10),  
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000)
-    });
-
-    console.log('OTP created for user:', user.name);
-
-    await AuthController.sendOTPEmail(user.email, otp);
-
-    res.json({
-        message: 'OTP sent to your email',
-        userId: user._id,
-        username: user.email,
-        userType: 'User'  // Include userType in response
-    });
-
+        email: user.email,
+      });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed", error: error.message });
@@ -297,7 +314,7 @@ class AuthController {
       {
         id: user._id,
         email: user.email,
-        userType: 'User'
+        userType: "User",
       },
       AuthController.JWT_SECRET,
       { expiresIn: "2h" }
@@ -307,48 +324,91 @@ class AuthController {
   static async verifyOTP(req, res) {
     try {
       const { email, otp } = req.body;
-
-      const otpRecord = await OTP.findOne({
-        username:email,
-        userModel: 'User',  // Add userModel filter
-        expiresAt: { $gt: new Date() }
-    }).sort({ createdAt: -1 });
-
-    console.log('Found OTP record:', otpRecord ? 'Yes' : 'No'); 
-
-        if (!otpRecord) {
-            return res.status(401).json({ message: 'OTP expired or invalid' });
-        }
-        const isValidOTP = await bcrypt.compare(otp.toString(), otpRecord.otp);
-        console.log('OTP validation result:', isValidOTP); 
-        if (!isValidOTP) {
-            return res.status(401).json({ message: 'Invalid OTP' });
-        }
-        await OTP.deleteOne({ _id: otpRecord._id });
-
-        const user = await UserModel.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ message: 'User not found' });
-        }
-
+  
+      // Extensive Debugging Log
+      console.log('OTP Verification Request Details:');
+      console.log('Email:', email);
+      console.log('OTP Received:', otp);
+      console.log('Current Server Time:', new Date());
+  
+      // Find the user first to ensure email exists
+      const user = await UserModel.findOne({ email });
+      if (!user) {
+        console.log('User not found for email:', email);
+        return res.status(401).json({ 
+          message: "User not found", 
+          details: "No user exists with this email" 
+        });
+      }
+  
+      // Comprehensive OTP Record Search
+      const allOtpRecords = await userOTP.find({ 
+        email,
+        // Removed time check to see all records
+      }).sort({ createdAt: -1 });
+  
+      console.log('Total OTP Records Found:', allOtpRecords.length);
+      
+      // Log details of each OTP record
+      allOtpRecords.forEach((record, index) => {
+        console.log(`OTP Record ${index + 1}:`);
+        console.log('Record ID:', record._id);
+        console.log('Created At:', record.createdAt);
+        console.log('Expires At:', record.expiresAt);
+        console.log('Is Expired:', record.expiresAt < new Date());
+      });
+  
+      // Find valid (non-expired) OTP records
+      const validOtpRecords = allOtpRecords.filter(
+        record => record.expiresAt > new Date()
+      );
+  
+      console.log('Valid OTP Records:', validOtpRecords.length);
+  
+      if (validOtpRecords.length === 0) {
+        return res.status(401).json({ 
+          message: "OTP expired or invalid", 
+          details: "No valid OTP records found" 
+        });
+      }
+  
+      // Use the most recent valid OTP record
+      const otpRecord = validOtpRecords[0];
+  
+      // Verify OTP
+      const isValidOTP = await bcrypt.compare(otp.toString(), otpRecord.otp);
+      
+      console.log('OTP Validation Result:', isValidOTP);
+  
+      if (!isValidOTP) {
+        return res.status(401).json({ 
+          message: "Invalid OTP", 
+          details: "OTP does not match recorded hash" 
+        });
+      }
+  
+      // Delete the used OTP record
+      await userOTP.deleteOne({ _id: otpRecord._id });
+  
       // Generate JWT token
       const token = AuthController.generateToken(user);
-
+  
       res.json({
-        message: 'Login successful',
+        message: "Login successful",
         token,
         user: {
-            id: user._id,
-            email: user.email,
-            name: user.name,
-            userType: 'User'  // Include userType in response
-        }
-    });
+          id: user._id,
+          email: user.email,
+          name: user.name,
+        },
+      });
     } catch (error) {
       console.error("OTP verification error:", error);
-      res
-        .status(500)
-        .json({ message: "OTP verification failed", error: error.message });
+      res.status(500).json({ 
+        message: "OTP verification failed", 
+        error: error.toString(),
+        errorStack: error.stack 
+      });
     }
   }
 

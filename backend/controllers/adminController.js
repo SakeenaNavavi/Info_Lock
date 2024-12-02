@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const CryptoJS = require('crypto-js');
 const bcrypt = require('bcryptjs');
-const OTP = require('../models/otpModel');
+const OTP = require('../models/adminOtpModel');
 const jwt = require('jsonwebtoken');
 const AdminModel = require('../models/adminModel');
 const sgMail = require('@sendgrid/mail');
@@ -27,8 +27,7 @@ class adminController {
     return jwt.sign(
         {
             id: admin._id,
-            email: admin.email,
-            userType: 'Admin' // Add userType to token
+            email: admin.email
         },
         adminController.JWT_SECRET,
         { expiresIn: '2h' }
@@ -84,7 +83,6 @@ class adminController {
         // Create OTP with userModel field
         await OTP.create({
             userId: admin._id,
-            userModel: 'Admin',  // Specify that this is for Admin model
             username: admin.username,  
             otp: await bcrypt.hash(otp.toString(), 10),  
             expiresAt: new Date(Date.now() + 5 * 60 * 1000)
@@ -99,7 +97,6 @@ class adminController {
             message: 'OTP sent to your email',
             userId: admin._id,
             username: admin.username,
-            userType: 'Admin'  // Include userType in response
         });
     } catch (error) {
         console.error('Login initiation error:', error);
@@ -111,10 +108,12 @@ class adminController {
     try {
         const { username, otp } = req.body;
 
+        const admin = await AdminModel.findOne({ username });
+        console.log(admin);
+
         // Find the latest OTP for the admin user
         const otpRecord = await OTP.findOne({
             username,
-            userModel: 'Admin',  // Add userModel filter
             expiresAt: { $gt: new Date() }
         }).sort({ createdAt: -1 });
 
@@ -135,7 +134,7 @@ class adminController {
         await OTP.deleteOne({ _id: otpRecord._id });
 
         // Find admin and generate token
-        const admin = await AdminModel.findOne({ username });
+
         if (!admin) {
             return res.status(401).json({ message: 'Admin not found' });
         }
@@ -149,7 +148,6 @@ class adminController {
                 id: admin._id,
                 email: admin.email,
                 name: admin.username,
-                userType: 'Admin'  // Include userType in response
             }
         });
     } catch (error) {

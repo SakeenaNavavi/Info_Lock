@@ -78,7 +78,6 @@ const LoginPage = () => {
         setOtpSent(true);
         alert("OTP has been sent to your email");
       } else {
-        // OTP verification step
         await AuthService.verifyUserOTP(formData.email, formData.otp);
         navigate("/dashboard");
       }
