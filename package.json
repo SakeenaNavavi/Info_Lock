@@ -1,14 +1,21 @@
 {
     "name": "infolock",
     "version": "1.0.0",
+    "engines": {
+      "node": "18.17.1"
+    },
     "scripts": {
       "start": "node backend/server.js",
-      "server": "nodemon backend/server.js",
-      "client": "npm start --prefix frontend",
-      "dev": "concurrently \"npm run server\" \"npm run client\"",
-      "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm install --prefix frontend && npm run build --prefix frontend"
+      "server": "cd backend && npm run dev",
+      "client": "cd frontend && npm start",
+      "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+      "build-client": "cd frontend && npm run build",
+      "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm run install-all && npm run build-client"
     },
     "dependencies": {
-      "concurrently": "^6.2.0"
+      "concurrently": "^8.2.2"
+    },
+    "devDependencies": {
+      "nodemon": "^3.1.7"
     }
   }
