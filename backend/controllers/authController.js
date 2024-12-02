@@ -19,7 +19,7 @@ class AuthController {
   static SMTP_PORT = process.env.SMTP_PORT;
   static SMTP_USER = process.env.SMTP_USER;
   static SMTP_PASS = process.env.SMTP_PASS;
-  static APP_URL = process.env.APP_URL;
+  static APP_URL = process.env.CLIENT_URL;
 
   // Initialize email transporter
   static getEmailTransporter() {
