@@ -6,7 +6,7 @@ import LoginPage from './Pages/LoginPage';
 import VerifyEmail from './Components/VerifyEmail';
 import AdminLoginPage from './Pages/AdminLoginPage';
 import AdminDashboard from './Pages/AdminDashboard';
-import Dashboard from './Pages/Dashboard.jsx';
+import Dashboard from './Pages/Dashboard';
 
 function App() {
   return (
