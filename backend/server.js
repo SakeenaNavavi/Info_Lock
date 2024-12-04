@@ -24,8 +24,7 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-    origin: process.env.CLIENT_URL ,
-    credentials: true
+    origin: 'https://sakeenanavavi.me'
 }));
 
 app.use(express.json());
