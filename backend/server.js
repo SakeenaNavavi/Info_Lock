@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: process.env.CLIENT_URL ,
     credentials: true
 }));
 
@@ -87,7 +87,7 @@ const startServer = async () => {
     try {
         await connectDB();
         
-        const PORT = process.env.PORT || 5000;
+        const PORT = process.env.PORT;
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
             console.log(`Health check available at: http://localhost:${PORT}/api/health`);
