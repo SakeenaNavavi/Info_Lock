@@ -125,27 +125,27 @@ export class AuthService {
 
       // Secure password for transit
       const securePassword = this.securePasswordForTransit(credentials.password);
-
+      
       const response = await this.axiosInstance.post('/api/auth/login', {
         email: credentials.email,
         password: securePassword
       });
-
+      
       if (response.data.token) {
         // Store auth token
         localStorage.setItem('token', response.data.token);
-
+        
         // Update axios instance headers for subsequent requests
         this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       }
-
+      
       return response.data;
     } catch (error) {
       if (error.response) {
-        const errorMessage = error.response.data?.message ||
-          error.response.data?.error ||
-          'Login failed';
-
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           'Login failed';
+                           
         if (error.response.status === 401) {
           throw new Error('Invalid email or password');
         } else if (error.response.status === 400) {

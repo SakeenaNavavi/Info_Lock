@@ -95,78 +95,52 @@ class AuthController {
 
   static async login(req, res) {
     try {
-      const { email, password: transitPassword } = req.body;
-  
-      // Decrypt the transit-protected password
-      const password = AuthController.decryptTransitPassword(transitPassword);
-  
-      // Find user
-      const user = await UserModel.findOne({ email });
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-  
-      // Check if user is verified
-      if (!user.isVerified) {
-        return res.status(403).json({
-          message: "Please verify your email before logging in",
-          requiresVerification: true,
-          email: user.email,
+        const { email, password: transitPassword } = req.body;
+
+        // Decrypt the transit-protected password
+        const password = AuthController.decryptTransitPassword(transitPassword);
+
+        // Find user
+        const user = await UserModel.findOne({ email });
+        if (!user) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Check if user is verified
+        if (!user.isVerified) {
+            return res.status(403).json({
+                message: 'Please verify your email before logging in',
+                requiresVerification: true,
+                email: user.email
+            });
+        }
+
+        // Combine password with pepper
+        const pepperedPassword = AuthController.applyPepper(password);
+
+        // Verify password using stored salt
+        const isValid = await bcrypt.compare(pepperedPassword, user.password);
+        if (!isValid) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Generate JWT token
+        const token = AuthController.generateToken(user);
+
+        res.json({
+            message: 'Login successful',
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name
+            }
         });
-      }
-  
-      // Combine password with pepper
-      const pepperedPassword = AuthController.applyPepper(password);
-  
-      // Verify password using stored salt
-      const isValid = await bcrypt.compare(pepperedPassword, user.password);
-      if (!isValid) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-  
-      const otp = AuthController.generateOTP();
-  
-      // Extensive logging for OTP creation
-      console.log('OTP Creation Debug:');
-      console.log('User ID:', user._id);
-      console.log('User Email:', user.email);
-      console.log('Generated OTP:', otp);
-      console.log('Current Timestamp:', new Date());
-      console.log('Expiry Timestamp:', new Date(Date.now() + 5 * 60 * 1000));
-  
-      try {
-        const otpRecord = await userOTP.create({
-          userId: user._id,
-          email: user.email,
-          otp: await bcrypt.hash(otp.toString(), 10),
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-        });
-  
-        console.log('OTP Record Created Successfully:');
-        console.log('OTP Record ID:', otpRecord._id);
-        console.log('OTP Record Details:', otpRecord);
-      } catch (otpCreationError) {
-        console.error('Error Creating OTP Record:', otpCreationError);
-        return res.status(500).json({ 
-          message: "Failed to create OTP record", 
-          error: otpCreationError.message 
-        });
-      }
-  
-      console.log("OTP created for user:", user.name);
-  
-      await AuthController.sendOTPEmail(user.email, otp);
-  
-      res.json({
-        message: "OTP sent to your email",
-        userId: user._id,
-        email: user.email,
-      });
     } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Login failed", error: error.message });
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Login failed', error: error.message });
     }
-  }
+}
 
   static async verifyEmail(req, res) {
     try {
