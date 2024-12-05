@@ -31,6 +31,8 @@ app.use(cors({
 
 app.use(express.json());
 
+app.options('*', cors()); // Enable pre-flight requests for all routes
+
 // Health check endpoint (add this before other routes)
 app.get('/api/health', (req, res) => {
     res.json({
