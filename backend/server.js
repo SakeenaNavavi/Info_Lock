@@ -24,7 +24,9 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-    origin: 'https://sakeenanavavi.me'
+    origin: 'https://sakeenanavavi.me',  
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],  // Allowed HTTP methods
+    credentials: true,  // Enable cookies or authentication headers
 }));
 
 app.use(express.json());
