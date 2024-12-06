@@ -22,31 +22,31 @@ app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*'); // Allow all origins (insecure for production)
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'); // Allow all methods
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true'); // Allow credentials
+
+    // If it's a preflight request, respond with 200 OK to allow actual requests
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+
+    next(); // Continue to other routes
+});
+
+// CORS options (optional, can still be used, but this isn't necessary for bypass)
 const corsOptions = {
-    origin: 'https://sakeenanavavi.me',  // Only allow your frontend domain
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
-    credentials: true,  // Allow cookies and credentials
-    allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
+    origin: '*', // Allow all origins (for temporary bypass)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// Use the CORS middleware with the specified options
-app.use(cors(corsOptions));
+app.use(cors(corsOptions)); // Apply CORS options
 
-// Handle preflight requests (OPTIONS)
-app.options('*', cors(corsOptions));  // Enable OPTIONS requests for all routes
-
-// Middleware to add custom headers (ensure they don't conflict)
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');  // Explicit origin
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');  // Allow credentials
-
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200); // Send 200 OK for preflight requests
-    }
-    next(); // Continue to the next middleware
-});
+app.options('*', cors(corsOptions)); // Enable preflight for all routes
 
 
 app.use(express.json());
