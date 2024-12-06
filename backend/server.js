@@ -23,31 +23,30 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-    
-    next();
-});
-
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
-        ? ['https://sakeenanavavi.me', 'https://api.sakeenanavavi.me']
-        : '*',
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'https://sakeenanavavi.me', 
+            'https://api.sakeenanavavi.me',
+            'http://localhost:3000'  // Add local development origin if needed
+        ];
+        
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 };
 
+// Apply CORS before routes
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+
 
 app.use(express.json());
 // Health check endpoint (add this before other routes)
