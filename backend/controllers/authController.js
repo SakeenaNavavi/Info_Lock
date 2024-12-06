@@ -1,11 +1,13 @@
 const UserModel = require("../models/userModel");
 const userOTP = require("../models/userOtpModel");
+const UserActivity = require("../models/userActivity");
 const sgMail = require("@sendgrid/mail");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const CryptoJS = require("crypto-js");
 const nodemailer = require("nodemailer");
+const GeoLocationUtil = require("../utils/geoLocationUtil");
 
 class AuthController {
   // These would be stored in environment variables
@@ -75,6 +77,13 @@ class AuthController {
       // Send verification email
       await AuthController.sendVerificationEmail(user.email, verificationToken);
 
+      await this.logUserActivity({
+        user,
+        email: user.email,
+        action: "REGISTRATION",
+        req,
+      });
+
       res.status(201).json({
         message:
           "Registration successful. Please check your email to verify your account.",
@@ -95,52 +104,67 @@ class AuthController {
 
   static async login(req, res) {
     try {
-        const { email, password: transitPassword } = req.body;
+      const { email, password: transitPassword } = req.body;
 
-        // Decrypt the transit-protected password
-        const password = AuthController.decryptTransitPassword(transitPassword);
+      // Decrypt the transit-protected password
+      const password = AuthController.decryptTransitPassword(transitPassword);
 
-        // Find user
-        const user = await UserModel.findOne({ email });
+      // Find user
+      const user = await UserModel.findOne({ email });
+      if (!user)
         if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+          // Log failed login attempt
+          await this.logUserActivity({
+            email,
+            action: "LOGIN",
+            req,
+            success: false,
+          });
+          return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // Check if user is verified
-        if (!user.isVerified) {
-            return res.status(403).json({
-                message: 'Please verify your email before logging in',
-                requiresVerification: true,
-                email: user.email
-            });
-        }
-
-        // Combine password with pepper
-        const pepperedPassword = AuthController.applyPepper(password);
-
-        // Verify password using stored salt
-        const isValid = await bcrypt.compare(pepperedPassword, user.password);
-        if (!isValid) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        // Generate JWT token
-        const token = AuthController.generateToken(user);
-
-        res.json({
-            message: 'Login successful',
-            token,
-            user: {
-                id: user._id,
-                email: user.email,
-                name: user.name
-            }
+      // Check if user is verified
+      if (!user.isVerified) {
+        return res.status(403).json({
+          message: "Please verify your email before logging in",
+          requiresVerification: true,
+          email: user.email,
         });
+      }
+
+      // Combine password with pepper
+      const pepperedPassword = AuthController.applyPepper(password);
+
+      // Verify password using stored salt
+      const isValid = await bcrypt.compare(pepperedPassword, user.password);
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Generate JWT token
+      const token = AuthController.generateToken(user);
+
+      await this.logUserActivity({
+        user,
+        email,
+        action: "LOGIN",
+        req,
+      });
+
+      res.json({
+        message: "Login successful",
+        token,
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+        },
+      });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Login failed', error: error.message });
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed", error: error.message });
     }
-}
+  }
 
   static async verifyEmail(req, res) {
     try {
@@ -168,6 +192,14 @@ class AuthController {
       await user.save();
 
       console.log(`User ${user.email} verified successfully`);
+
+      await this.logUserActivity({ 
+        user, 
+        email: user.email, 
+        action: 'EMAIL_VERIFICATION', 
+        req 
+      });
+
       res.json({
         message: "Email verified successfully",
         success: true,
@@ -257,6 +289,14 @@ class AuthController {
   }
   static async logout(req, res) {
     try {
+      
+        await this.logUserActivity({ 
+          user: req.user, 
+          email: req.user.email, 
+          action: 'LOGOUT', 
+          req 
+        });
+      
       // If you're using token blacklisting, implement it here
       res.json({ message: "Logged out successfully" });
     } catch (error) {
@@ -298,75 +338,77 @@ class AuthController {
   static async verifyOTP(req, res) {
     try {
       const { email, otp } = req.body;
-  
+
       // Extensive Debugging Log
-      console.log('OTP Verification Request Details:');
-      console.log('Email:', email);
-      console.log('OTP Received:', otp);
-      console.log('Current Server Time:', new Date());
-  
+      console.log("OTP Verification Request Details:");
+      console.log("Email:", email);
+      console.log("OTP Received:", otp);
+      console.log("Current Server Time:", new Date());
+
       // Find the user first to ensure email exists
       const user = await UserModel.findOne({ email });
       if (!user) {
-        console.log('User not found for email:', email);
-        return res.status(401).json({ 
-          message: "User not found", 
-          details: "No user exists with this email" 
+        console.log("User not found for email:", email);
+        return res.status(401).json({
+          message: "User not found",
+          details: "No user exists with this email",
         });
       }
-  
+
       // Comprehensive OTP Record Search
-      const allOtpRecords = await userOTP.find({ 
-        email,
-        // Removed time check to see all records
-      }).sort({ createdAt: -1 });
-  
-      console.log('Total OTP Records Found:', allOtpRecords.length);
-      
+      const allOtpRecords = await userOTP
+        .find({
+          email,
+          // Removed time check to see all records
+        })
+        .sort({ createdAt: -1 });
+
+      console.log("Total OTP Records Found:", allOtpRecords.length);
+
       // Log details of each OTP record
       allOtpRecords.forEach((record, index) => {
         console.log(`OTP Record ${index + 1}:`);
-        console.log('Record ID:', record._id);
-        console.log('Created At:', record.createdAt);
-        console.log('Expires At:', record.expiresAt);
-        console.log('Is Expired:', record.expiresAt < new Date());
+        console.log("Record ID:", record._id);
+        console.log("Created At:", record.createdAt);
+        console.log("Expires At:", record.expiresAt);
+        console.log("Is Expired:", record.expiresAt < new Date());
       });
-  
+
       // Find valid (non-expired) OTP records
       const validOtpRecords = allOtpRecords.filter(
-        record => record.expiresAt > new Date()
+        (record) => record.expiresAt > new Date()
       );
-  
-      console.log('Valid OTP Records:', validOtpRecords.length);
-  
+
+      console.log("Valid OTP Records:", validOtpRecords.length);
+
       if (validOtpRecords.length === 0) {
-        return res.status(401).json({ 
-          message: "OTP expired or invalid", 
-          details: "No valid OTP records found" 
+        return res.status(401).json({
+          message: "OTP expired or invalid",
+          details: "No valid OTP records found",
         });
       }
-  
+
       // Use the most recent valid OTP record
       const otpRecord = validOtpRecords[0];
-  
+
       // Verify OTP
       const isValidOTP = await bcrypt.compare(otp.toString(), otpRecord.otp);
-      
-      console.log('OTP Validation Result:', isValidOTP);
-  
+
+      console.log("OTP Validation Result:", isValidOTP);
+
       if (!isValidOTP) {
-        return res.status(401).json({ 
-          message: "Invalid OTP", 
-          details: "OTP does not match recorded hash" 
+        return res.status(401).json({
+          message: "Invalid OTP",
+          details: "OTP does not match recorded hash",
         });
       }
-  
+
       // Delete the used OTP record
       await userOTP.deleteOne({ _id: otpRecord._id });
-  
+
       // Generate JWT token
       const token = AuthController.generateToken(user);
-  
+
       res.json({
         message: "Login successful",
         token,
@@ -378,10 +420,10 @@ class AuthController {
       });
     } catch (error) {
       console.error("OTP verification error:", error);
-      res.status(500).json({ 
-        message: "OTP verification failed", 
+      res.status(500).json({
+        message: "OTP verification failed",
         error: error.toString(),
-        errorStack: error.stack 
+        errorStack: error.stack,
       });
     }
   }
@@ -402,6 +444,43 @@ class AuthController {
     };
 
     await sgMail.send(msg);
+  }
+
+  static async logUserActivity(options) {
+    try {
+      const { user, email, action, req, success = true } = options;
+
+      // Extract IP address (handle proxy scenarios)
+      const ipAddress =
+        req.headers["x-forwarded-for"] ||
+        req.connection.remoteAddress ||
+        req.socket.remoteAddress ||
+        req.connection.socket.remoteAddress;
+
+      // Get geolocation
+      const location = await GeoLocationUtil.getIPLocation(ipAddress);
+
+      // Parse user agent
+      const userAgent = req.get("User-Agent");
+      const device = GeoLocationUtil.parseUserAgent(userAgent);
+
+      // Create activity log
+      const activityLog = new UserActivity({
+        user: user ? user._id : null,
+        email,
+        action,
+        ipAddress,
+        userAgent,
+        location: location || {},
+        device,
+        success,
+      });
+
+      await activityLog.save();
+      return activityLog;
+    } catch (error) {
+      console.error("Activity Logging Error:", error);
+    }
   }
 }
 

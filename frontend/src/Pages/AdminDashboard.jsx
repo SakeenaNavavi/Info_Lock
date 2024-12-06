@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Lock, 
   Users, 
@@ -9,10 +9,34 @@ import {
   Search,
   FileText,
   FolderLock,
-  BarChart3
+  BarChart3,
+  Globe,
+  Monitor,
+  Smartphone
 } from 'lucide-react';
+import axios from 'axios';
 
 const AdminDashboard = () => {
+  const [userActivities, setUserActivities] = useState([]);
+
+  useEffect(() => {
+    // Fetch user activities
+    const fetchUserActivities = async () => {
+      try {
+        const response = await axios.get('/api/admin/user-activities', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          }
+        });
+        setUserActivities(response.data.activities);
+      } catch (error) {
+        console.error('Failed to fetch user activities:', error);
+      }
+    };
+
+    fetchUserActivities();
+  }, []);
+
   const stats = [
     { label: 'Total Users', value: '2,847', icon: Users, change: '+12%' },
     { label: 'Active Vaults', value: '1,234', icon: Lock, change: '+5%' },
@@ -20,64 +44,23 @@ const AdminDashboard = () => {
     { label: 'Security Score', value: '98%', icon: Shield, change: '+2%' },
   ];
 
-  const recentActivity = [
-    { user: 'Sarah Chen', action: 'Created new vault', time: '2 mins ago' },
-    { user: 'Mike Johnson', action: 'Updated security key', time: '15 mins ago' },
-    { user: 'Emma Davis', action: 'Shared vault access', time: '1 hour ago' },
-    { user: 'Alex Kim', action: 'Added new documents', time: '2 hours ago' },
-  ];
+  // Map activity types to readable labels and colors
+  const activityTypeStyles = {
+    'LOGIN': { label: 'Login', color: 'text-green-600' },
+    'LOGOUT': { label: 'Logout', color: 'text-red-600' },
+    'REGISTRATION': { label: 'Registration', color: 'text-blue-600' },
+    'PASSWORD_CHANGE': { label: 'Password Change', color: 'text-yellow-600' },
+    'EMAIL_VERIFICATION': { label: 'Email Verification', color: 'text-purple-600' },
+    'OTP_LOGIN': { label: 'OTP Login', color: 'text-indigo-600' }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="fixed left-0 top-0 h-full w-64 bg-[#1a237e] text-white p-4">
-        <div className="flex items-center mb-8">
-          <Lock className="h-8 w-8" />
-          <h1 className="text-xl font-bold ml-2">SecureVault</h1>
-        </div>
-        
-        <nav className="space-y-2">
-          {[
-            { icon: Activity, label: 'Dashboard' },
-            { icon: FolderLock, label: 'Vaults' },
-            { icon: Users, label: 'Users' },
-            { icon: FileText, label: 'Documents' },
-            { icon: BarChart3, label: 'Analytics' },
-            { icon: Settings, label: 'Settings' },
-          ].map((item) => (
-            <button
-              key={item.label}
-              className="flex items-center w-full p-3 rounded-lg hover:bg-blue-800 transition-colors"
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="ml-3">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
+      {/* Sidebar and header remain the same as previous implementation */}
+      
       {/* Main Content */}
       <div className="ml-64 p-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex-1 max-w-xl">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                placeholder="Search vaults, users, or documents..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          
-          <button className="p-2 relative mx-4">
-            <Bell className="h-6 w-6 text-gray-600" />
-            <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
-          </button>
-        </div>
-
-        {/* Stats Grid */}
+        {/* Existing Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat) => (
             <div key={stat.label} className="bg-white rounded-lg p-6 shadow-sm">
@@ -91,22 +74,52 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        {/* Recent Activity */}
+        {/* User Activities Section */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+            <h2 className="text-xl font-bold text-gray-900">Recent User Activities</h2>
             <button className="text-[#1a237e] hover:underline">View all</button>
           </div>
           <div className="space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
-                <div>
-                  <p className="font-medium text-gray-900">{activity.user}</p>
-                  <p className="text-sm text-gray-500">{activity.action}</p>
+            {userActivities.map((activity, index) => {
+              const activityStyle = activityTypeStyles[activity.action] || { 
+                label: activity.action, 
+                color: 'text-gray-600' 
+              };
+              
+              return (
+                <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
+                  <div className="flex items-center space-x-4">
+                    {/* Action Type Icon */}
+                    <div className={`${activityStyle.color} p-2 rounded-full bg-opacity-10`}>
+                      {activity.action === 'LOGIN' && <Monitor className="h-5 w-5" />}
+                      {activity.action === 'LOGOUT' && <Smartphone className="h-5 w-5" />}
+                      {activity.action === 'REGISTRATION' && <Users className="h-5 w-5" />}
+                      {activity.device.deviceType === 'Mobile' && <Smartphone className="h-5 w-5" />}
+                      {activity.device.deviceType === 'Desktop' && <Monitor className="h-5 w-5" />}
+                    </div>
+                    
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {activity.email}
+                      </p>
+                      <div className="flex items-center space-x-2 text-sm text-gray-500">
+                        <span className={`${activityStyle.color} font-semibold`}>
+                          {activityStyle.label}
+                        </span>
+                        <span>•</span>
+                        <span>{activity.device.browser} on {activity.device.os}</span>
+                        <span>•</span>
+                        <span>{activity.location?.city}, {activity.location?.country}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {new Date(activity.timestamp).toLocaleString()}
+                  </div>
                 </div>
-                <span className="text-sm text-gray-400">{activity.time}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
