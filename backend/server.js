@@ -22,31 +22,16 @@ app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*'); // Allow all origins (insecure for production)
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS'); // Allow all methods
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true'); // Allow credentials
 
-    // If it's a preflight request, respond with 200 OK to allow actual requests
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-
-    next(); // Continue to other routes
-});
-
-// CORS options (optional, can still be used, but this isn't necessary for bypass)
 const corsOptions = {
-    origin: '*', // Allow all origins (for temporary bypass)
+    origin: '*', // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
 app.use(cors(corsOptions)); // Apply CORS options
-
-app.options('*', cors(corsOptions)); // Enable preflight for all routes
+app.options('*', cors(corsOptions));  // Enable preflight for all routes
 
 
 app.use(express.json());
