@@ -22,31 +22,31 @@ app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
-
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');  // Allow all origins (temporary)
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200); // Send 200 OK for OPTIONS (preflight)
-    }
-    
-    next();
-});
-
 const corsOptions = {
-    origin: 'https://sakeenanavavi.me', // Explicitly set to your frontend origin
+    origin: 'https://sakeenanavavi.me',  // Only allow your frontend domain
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
-    credentials: true, // Allow cookies and credentials
+    credentials: true,  // Allow cookies and credentials
     allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
 };
 
+// Use the CORS middleware with the specified options
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); 
 
+// Handle preflight requests (OPTIONS)
+app.options('*', cors(corsOptions));  // Enable OPTIONS requests for all routes
+
+// Middleware to add custom headers (ensure they don't conflict)
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');  // Explicit origin
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');  // Allow credentials
+
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200); // Send 200 OK for preflight requests
+    }
+    next(); // Continue to the next middleware
+});
 
 
 app.use(express.json());
