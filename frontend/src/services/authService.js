@@ -8,10 +8,12 @@ export class AuthService {
   // Base API URL - use environment variable if available
   static API_URL = `${process.env.REACT_APP_API_URL}`;
 
+  static CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
+
   // Axios instance with default config
   static axiosInstance = (() => {
     const instance = axios.create({
-      baseURL: AuthService.API_URL,
+      baseURL: AuthService.CORS_PROXY + AuthService.API_URL,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -260,9 +262,8 @@ export class AuthService {
         }
       })();
   
-      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-      const apiUrl = '/api/auth/admin-login';
-      const response = await this.axiosInstance.post(corsProxy + apiUrl, {
+  
+      const response = await this.axiosInstance.post('/api/auth/admin-login', {
         username: credentials.username,
         password: securePassword,
       });
@@ -285,7 +286,6 @@ export class AuthService {
   static async verifyOTP(username, otp) {
     
     try {
-      
         const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify-otp`, {
             method: 'POST',
             headers: {
