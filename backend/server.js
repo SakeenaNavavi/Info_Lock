@@ -38,29 +38,14 @@ app.use((req, res, next) => {
 });
 
 const corsOptions = {
-    origin: function (origin, callback) {
-        const allowedOrigins = ['https://sakeenanavavi.me'];
-        
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-        'Origin', 
-        'X-Requested-With', 
-        'Content-Type', 
-        'Accept', 
-        'Authorization'
-    ],
-    credentials: true
+    origin: 'https://sakeenanavavi.me', // Explicitly set to your frontend origin
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
+    credentials: true, // Allow cookies and credentials
+    allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
 };
 
-// Apply CORS before routes
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+app.options('*', cors(corsOptions)); 
 
 
 
