@@ -24,14 +24,14 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');
+    res.header('Access-Control-Allow-Origin', '*');  // Allow all origins (temporary)
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     res.header('Access-Control-Allow-Credentials', 'true');
     
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
+        return res.sendStatus(200); // Send 200 OK for OPTIONS (preflight)
     }
     
     next();
