@@ -39,11 +39,7 @@ app.use((req, res, next) => {
 
 const corsOptions = {
     origin: function (origin, callback) {
-        const allowedOrigins = [
-            'https://sakeenanavavi.me', 
-            'https://api.sakeenanavavi.me',
-            'http://localhost:3000'  // Add local development origin if needed
-        ];
+        const allowedOrigins = ['*'];
         
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
