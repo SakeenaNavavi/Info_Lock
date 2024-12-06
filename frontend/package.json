@@ -1,6 +1,7 @@
 {
   "name": "infolock",
   "version": "0.1.0",
+  "proxy": "https://api.sakeenanavavi.me",
   "private": true,
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.2",
