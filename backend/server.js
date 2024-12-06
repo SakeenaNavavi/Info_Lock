@@ -24,14 +24,26 @@ app.use((req, res, next) => {
 });
 
 app.use(cors({
-    origin: 'https://sakeenanavavi.me',  
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],  // Allowed HTTP methods
-    credentials: true,  // Enable cookies or authentication headers
+    origin: [
+        'https://sakeenanavavi.me',     // Frontend domain
+        'https://api.sakeenanavavi.me'  // API domain
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Add OPTIONS method
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 
 app.use(express.json());
 
-app.options('*', cors()); // Enable pre-flight requests for all routes
+app.options('*', cors({
+    origin: [
+        'https://sakeenanavavi.me',
+        'https://api.sakeenanavavi.me'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
 
 // Health check endpoint (add this before other routes)
 app.get('/api/health', (req, res) => {
