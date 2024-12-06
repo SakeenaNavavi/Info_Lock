@@ -23,28 +23,19 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use(cors({
-    origin: [
-        'https://sakeenanavavi.me',     // Frontend domain
-        'https://api.sakeenanavavi.me'  // API domain
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Add OPTIONS method
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
-
-app.use(express.json());
-
-app.options('*', cors({
-    origin: [
-        'https://sakeenanavavi.me',
-        'https://api.sakeenanavavi.me'
-    ],
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? ['https://sakeenanavavi.me', 'https://api.sakeenanavavi.me']
+        : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
-}));
+};
 
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+app.use(express.json());
 // Health check endpoint (add this before other routes)
 app.get('/api/health', (req, res) => {
     res.json({
