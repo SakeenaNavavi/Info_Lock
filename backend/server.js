@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 
 const corsOptions = {
     origin: function (origin, callback) {
-        const allowedOrigins = ['*'];
+        const allowedOrigins = ['https://sakeenanavavi.me'];
         
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
