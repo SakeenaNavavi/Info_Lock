@@ -260,8 +260,9 @@ export class AuthService {
         }
       })();
   
-  
-      const response = await this.axiosInstance.post('/api/auth/admin-login', {
+      const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+      const apiUrl = '/api/auth/admin-login';
+      const response = await this.axiosInstance.post(corsProxy + apiUrl, {
         username: credentials.username,
         password: securePassword,
       });
@@ -284,6 +285,7 @@ export class AuthService {
   static async verifyOTP(username, otp) {
     
     try {
+      
         const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/verify-otp`, {
             method: 'POST',
             headers: {
