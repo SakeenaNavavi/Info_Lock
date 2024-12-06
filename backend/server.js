@@ -23,8 +23,22 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');  // Specific origin
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');  // Allow credentials (cookies, authorization)
+  
+    // Handling Preflight Requests (OPTIONS)
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200); // Respond with 200 OK for preflight
+    }
+    
+    next();  // Continue to other routes
+  });
+
 const corsOptions = {
-    origin: '*', // Allow all origins
+    origin: 'https://sakeenanavavi.me', // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
