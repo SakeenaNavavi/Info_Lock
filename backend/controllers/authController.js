@@ -36,6 +36,49 @@ class AuthController {
     });
   }
 
+  static async logUserActivity(options) {
+    try {
+      const {
+        user,
+        email,
+        action,
+        req,
+        success = true
+      } = options;
+
+      // Extract IP address (handle proxy scenarios)
+      const ipAddress = 
+        req.headers['x-forwarded-for'] || 
+        req.connection.remoteAddress || 
+        req.socket.remoteAddress || 
+        req.connection.socket.remoteAddress;
+
+      // Get geolocation
+      const location = await GeoLocationUtil.getIPLocation(ipAddress);
+
+      // Parse user agent
+      const userAgent = req.get('User-Agent');
+      const device = GeoLocationUtil.parseUserAgent(userAgent);
+
+      // Create activity log
+      const activityLog = new UserActivity({
+        user: user ? user._id : null,
+        email,
+        action,
+        ipAddress,
+        userAgent,
+        location: location || {},
+        device,
+        success
+      });
+
+      await activityLog.save();
+      return activityLog;
+    } catch (error) {
+      console.error('Activity Logging Error:', error);
+    }
+  }
+
   static async register(req, res) {
     try {
       const { email, password: transitPassword, name, phoneno } = req.body;
@@ -111,17 +154,16 @@ class AuthController {
 
       // Find user
       const user = await UserModel.findOne({ email });
-      if (!user)
-        if (!user) {
-          // Log failed login attempt
-          await this.logUserActivity({
-            email,
-            action: "LOGIN",
-            req,
-            success: false,
-          });
-          return res.status(401).json({ message: "Invalid credentials" });
-        }
+      if (!user) {
+        // Log failed login attempt
+        await AuthController.logUserActivity({
+          email,
+          action: "LOGIN",
+          req,
+          success: false,
+        });
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
 
       // Check if user is verified
       if (!user.isVerified) {
@@ -138,13 +180,20 @@ class AuthController {
       // Verify password using stored salt
       const isValid = await bcrypt.compare(pepperedPassword, user.password);
       if (!isValid) {
+        // Log failed login attempt
+        await AuthController.logUserActivity({
+          email,
+          action: "LOGIN",
+          req,
+          success: false,
+        });
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       // Generate JWT token
       const token = AuthController.generateToken(user);
 
-      await this.logUserActivity({
+      await AuthController.logUserActivity({
         user,
         email,
         action: "LOGIN",

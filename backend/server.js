@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://sakeenanavavi.me');  // Specific origin
+    res.header('Access-Control-Allow-Origin', 'https://www.sakeenanavavi.me');  // Specific origin
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.header('Access-Control-Allow-Credentials', 'true');  // Allow credentials (cookies, authorization)
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   });
 
 const corsOptions = {
-    origin: 'https://sakeenanavavi.me', // Allow all origins
+    origin: 'https://www.sakeenanavavi.me', // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -78,13 +78,16 @@ app.use((req, res) => {
     res.status(404).json({ message: 'Route not found' });
 });
 
-// Serve static files from the "build" folder
-app.use(express.static(path.join(__dirname, 'build')));
+const path = require('path');
 
-// Handle React routing: return all requests to React's index.html
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+// After other middleware
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
   });
+}
   
 
 // MongoDB connection with enhanced error handling
