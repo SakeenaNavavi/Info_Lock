@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://www.Tharushananayakkara.me');  // Specific origin
+    res.header('Access-Control-Allow-Origin', 'https://www.sakeenanavavi.me');  // Specific origin
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.header('Access-Control-Allow-Credentials', 'true');  // Allow credentials (cookies, authorization)
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   });
 
 const corsOptions = {
-    origin: 'https://www.Tharushananayakkara.me', // Allow all origins
+    origin: 'https://www.sakeenanavavi.me', // Allow all origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
