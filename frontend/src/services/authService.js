@@ -8,12 +8,10 @@ export class AuthService {
   // Base API URL - use environment variable if available
   static API_URL = `${process.env.REACT_APP_API_URL}`;
 
-  static CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
-
   // Axios instance with default config
   static axiosInstance = (() => {
     const instance = axios.create({
-      baseURL: AuthService.CORS_PROXY + AuthService.API_URL,
+      baseURL: AuthService.API_URL,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -241,6 +239,10 @@ export class AuthService {
     try {
       
       const TRANSIT_KEY = process.env.REACT_APP_TRANSIT_KEY;
+
+      if (!TRANSIT_KEY) {
+        throw new Error('TRANSIT_KEY is not configured. Please check the environment variables.');
+      }
   
       if (!credentials.username || !credentials.password) {
         throw new Error('Username and password are required');
